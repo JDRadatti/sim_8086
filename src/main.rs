@@ -1,6 +1,9 @@
 // --------------------------------------------------------------------------------
 // Notes
 // --------------------------------------------------------------------------------
+//
+// http://data.matthieu.benoit.free.fr/cross/data_sheet2/8086_family_Users_Manual.pdf
+//
 // Registers:
 // - 16-bits
 //  AX  | word multiply, word divide, word IO
