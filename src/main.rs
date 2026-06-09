@@ -486,34 +486,9 @@
 //
 //
 
-// --------------------------------------------------------------------------------
-// Memory
-// --------------------------------------------------------------------------------
-
-// struct Memory  // buffer
-//
-// struct Location // location
-//
-// enum Size
-//  bit(count)
-//  byte(count)
-//  half(count)
-//  word(count)
-//
-// impl Memory {
-//      fn new(size)
-//      fn read(location, size)
-//      fn write(data, location, size)
-//      fn mov(source, destination, size)
-// }
-//
-// enum Errors {
-//      WriteOutOfBounds // data.size > size
-//      ReadOutOfBounds  // location + size > Memory.size
-// }
-//
-//
-// struct Register = Memory(Register_size)
+mod cpu;
+mod isa;
+mod memory;
 
 // --------------------------------------------------------------------------------
 // Parse
