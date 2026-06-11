@@ -98,10 +98,10 @@ mod tests {
 
     #[test]
     fn read_out_of_bounds_returns_error() {
-        let mem = Memory::new(16);
+        let mem = Memory::new(96);
         let result = mem.read(&Region {
-            address: 8,
-            size: 16,
+            address: 80,
+            size: 32,
         });
         assert_eq!(result, Err(MemoryError::SegmentationFault));
     }
@@ -168,6 +168,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(mem.buffer[3], 0xFF);
+    }
+
+    #[test]
+    fn write_zero_size_is_noop() {
+        let mut mem = Memory::new(4);
+        mem.write(
+            &[],
+            &Region {
+                address: 2,
+                size: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(&mem.buffer, &[0, 0, 0, 0]);
     }
 
     #[test]
@@ -303,6 +317,31 @@ mod tests {
             },
         );
         assert_eq!(result, Err(MemoryError::SegmentationFault));
+    }
+
+    #[test]
+    fn memcopy_zero_size_is_noop() {
+        let mut mem = Memory::new(4);
+        mem.write(
+            &[0xFF],
+            &Region {
+                address: 0,
+                size: 1,
+            },
+        )
+        .unwrap();
+        mem.memcopy(
+            &Region {
+                address: 0,
+                size: 0,
+            },
+            &Region {
+                address: 2,
+                size: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(&mem.buffer, &[0xFF, 0, 0, 0]);
     }
 
     #[test]
