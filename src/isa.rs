@@ -111,29 +111,6 @@ pub const REG_ENCODING: [Register; 16] = [
     Register::DI, // 111
 ];
 
-pub const AL: Region = Register::AL.region();
-pub const AX: Region = Register::AX.region();
-pub const AH: Region = Register::AH.region();
-pub const CL: Region = Register::CL.region();
-pub const CX: Region = Register::CX.region();
-pub const CH: Region = Register::CH.region();
-pub const DL: Region = Register::DL.region();
-pub const DX: Region = Register::DD.region();
-pub const DH: Region = Register::DH.region();
-pub const BL: Region = Register::BL.region();
-pub const BX: Region = Register::BX.region();
-pub const BH: Region = Register::BH.region();
-pub const SP: Region = Register::SP.region();
-pub const BP: Region = Register::BP.region();
-pub const SI: Region = Register::SI.region();
-pub const DI: Region = Register::DI.region();
-pub const CS: Region = Register::CS.region();
-pub const DS: Region = Register::DS.region();
-pub const SS: Region = Register::SS.region();
-pub const ES: Region = Register::ES.region();
-pub const IP: Region = Register::IP.region();
-pub const FLAGS: Region = Register::FLAGS.region();
-
 // --------------------------------------------------------------------------------
 // Instruction
 // --------------------------------------------------------------------------------

@@ -102,10 +102,10 @@ impl Cpu {
                 },
             )
             .expect("load failed");
-        self.write_register(&isa::CS, segment);
-        self.write_register(&isa::IP, 0);
-        self.write_register(&isa::SS, segment);
-        self.write_register(&isa::SP, 0x0400);
-        self.write_register(&isa::DS, segment);
+        self.write_register(&isa::Register::CS.region(), segment);
+        self.write_register(&isa::Register::IP.region(), 0);
+        self.write_register(&isa::Register::SS.region(), segment);
+        self.write_register(&isa::Register::SP.region(), 0x0400);
+        self.write_register(&isa::Register::DS.region(), segment);
     }
 }
