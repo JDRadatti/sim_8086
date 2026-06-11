@@ -24,6 +24,12 @@ pub enum Register {
     SI,
     BH,
     DI,
+    CS,
+    DS,
+    SS,
+    ES,
+    IP,
+    FLAGS,
 }
 
 #[rustfmt::skip]
@@ -32,20 +38,26 @@ impl Register {
         match self {
             Register::AL => Region { address: 0, size: 1, },
             Register::AX => Region { address: 0, size: 2, },
+            Register::AH => Region { address: 1, size: 1, },
             Register::CL => Region { address: 2, size: 1, },
             Register::CX => Region { address: 2, size: 2, },
+            Register::CH => Region { address: 3, size: 1, },
             Register::DL => Region { address: 4, size: 1, },
             Register::DX => Region { address: 4, size: 2, },
+            Register::DH => Region { address: 5, size: 1, },
             Register::BL => Region { address: 6, size: 1, },
             Register::BX => Region { address: 6, size: 2, },
-            Register::AH => Region { address: 1, size: 1, },
-            Register::SP => Region { address: 8, size: 2, },
-            Register::CH => Region { address: 3, size: 1, },
-            Register::BP => Region { address: 10, size: 2, },
-            Register::DH => Region { address: 5, size: 1, },
-            Register::SI => Region { address: 12, size: 2, },
             Register::BH => Region { address: 7, size: 1, },
+            Register::SP => Region { address: 8, size: 2, },
+            Register::BP => Region { address: 10, size: 2, },
+            Register::SI => Region { address: 12, size: 2, },
             Register::DI => Region { address: 14, size: 2, },
+            Register::CS => Region { address: 16, size: 2, },
+            Register::DS => Region { address: 18, size: 2, },
+            Register::SS => Region { address: 20, size: 2, },
+            Register::ES => Region { address: 22, size: 2, },
+            Register::IP => Region { address: 24, size: 2, },
+            Register::FLAGS => Region { address: 26, size: 2, },
         }
     }
 }
@@ -55,20 +67,26 @@ impl fmt::Display for Register {
         match self {
             Register::AL => write!(f, "al"),
             Register::AX => write!(f, "ax"),
+            Register::AH => write!(f, "ah"),
             Register::CL => write!(f, "cl"),
             Register::CX => write!(f, "cx"),
+            Register::CH => write!(f, "ch"),
             Register::DL => write!(f, "dl"),
             Register::DX => write!(f, "dx"),
+            Register::DH => write!(f, "dh"),
             Register::BL => write!(f, "bl"),
             Register::BX => write!(f, "bx"),
-            Register::AH => write!(f, "ah"),
-            Register::SP => write!(f, "sp"),
-            Register::CH => write!(f, "ch"),
-            Register::BP => write!(f, "bp"),
-            Register::DH => write!(f, "dh"),
-            Register::SI => write!(f, "si"),
             Register::BH => write!(f, "bh"),
+            Register::SP => write!(f, "sp"),
+            Register::BP => write!(f, "bp"),
+            Register::SI => write!(f, "si"),
             Register::DI => write!(f, "di"),
+            Register::CS => write!(f, "CS"),
+            Register::DS => write!(f, "DS"),
+            Register::SS => write!(f, "SS"),
+            Register::ES => write!(f, "ES"),
+            Register::IP => write!(f, "IP"),
+            Register::FLAGS => write!(f, "Flags"),
         }
     }
 }
@@ -93,22 +111,28 @@ pub const REG_ENCODING: [Register; 16] = [
     Register::DI, // 111
 ];
 
-// --------------------------------------------------------------------------------
-// System registers
-// --------------------------------------------------------------------------------
-
-#[rustfmt::skip]
-pub const CS: Region = Region { address: 16, size: 2, };
-#[rustfmt::skip]
-pub const DS: Region = Region { address: 18, size: 2, };
-#[rustfmt::skip]
-pub const SS: Region = Region { address: 20, size: 2, };
-#[rustfmt::skip]
-pub const ES: Region = Region { address: 22, size: 2, };
-#[rustfmt::skip]
-pub const IP: Region = Region { address: 24, size: 2, };
-#[rustfmt::skip]
-pub const FLAGS: Region = Region { address: 26, size: 2, };
+pub const AL: Region = Register::AL.region();
+pub const AX: Region = Register::AX.region();
+pub const AH: Region = Register::AH.region();
+pub const CL: Region = Register::CL.region();
+pub const CX: Region = Register::CX.region();
+pub const CH: Region = Register::CH.region();
+pub const DL: Region = Register::DL.region();
+pub const DX: Region = Register::DD.region();
+pub const DH: Region = Register::DH.region();
+pub const BL: Region = Register::BL.region();
+pub const BX: Region = Register::BX.region();
+pub const BH: Region = Register::BH.region();
+pub const SP: Region = Register::SP.region();
+pub const BP: Region = Register::BP.region();
+pub const SI: Region = Register::SI.region();
+pub const DI: Region = Register::DI.region();
+pub const CS: Region = Register::CS.region();
+pub const DS: Region = Register::DS.region();
+pub const SS: Region = Register::SS.region();
+pub const ES: Region = Register::ES.region();
+pub const IP: Region = Register::IP.region();
+pub const FLAGS: Region = Register::FLAGS.region();
 
 // --------------------------------------------------------------------------------
 // Instruction
