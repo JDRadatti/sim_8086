@@ -1,5 +1,6 @@
 use crate::isa;
 use crate::memory::{Memory, Region};
+use std::fmt;
 
 // --------------------------------------------------------------------------------
 // CPU errors
@@ -8,6 +9,15 @@ use crate::memory::{Memory, Region};
 pub enum CpuError {
     InvalidOpcode(u16),
     Halted,
+}
+
+impl fmt::Display for CpuError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CpuError::InvalidOpcode(addr) => write!(f, "failed to parse instruction at {addr}"),
+            CpuError::Halted => write!(f, "execution halted"),
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------
