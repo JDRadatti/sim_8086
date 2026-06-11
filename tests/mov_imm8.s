@@ -1,9 +1,9 @@
 BITS 16
-mov al, 0x61
-mov cl, 0x42
-mov dl, 0x7f
-mov bl, 0x80
-mov ah, 0xff
-mov ch, 0x00
-mov dh, 0x11
-mov bh, 0x22
+mov al, 97
+mov cl, 66
+mov dl, 127
+mov bl, 128
+mov ah, 255
+mov ch, 0
+mov dh, 17
+mov bh, 34

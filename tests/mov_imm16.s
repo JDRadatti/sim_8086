@@ -1,9 +1,9 @@
 BITS 16
-mov ax, 0x1234
-mov cx, 0x5678
-mov dx, 0xff00
-mov bx, 0xabcd
-mov sp, 0x0001
-mov bp, 0x0200
-mov si, 0x00ff
-mov di, 0x7fff
+mov ax, 4660
+mov cx, 22136
+mov dx, 65280
+mov bx, 43981
+mov sp, 1
+mov bp, 512
+mov si, 255
+mov di, 32767
