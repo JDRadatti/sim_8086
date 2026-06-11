@@ -526,11 +526,12 @@ mod memory;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: sim_8086 <binary>");
+        eprintln!("usage: sim_8086 <mode> <binary>");
         std::process::exit(1);
     }
 
-    let program = std::fs::read(&args[1]).expect("failed to read binary");
+    // TODO: program expects mode as first arg, right now we just skip it
+    let program = std::fs::read(&args[2]).expect("failed to read binary");
     if program.len() > 0x10000 {
         eprintln!("program too large (max 64KB)");
         std::process::exit(1);
