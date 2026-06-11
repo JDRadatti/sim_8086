@@ -458,12 +458,18 @@ fn rm_field_encoding(context: &ParseContext) -> Operand {
     let w = context.values[Identifier::W as usize].unwrap();
     let disp_lo = context.values[Identifier::DispLo as usize];
     let disp_hi = context.values[Identifier::DispHi as usize];
-    let displacement = combine_bytes(disp_lo, disp_hi);
+    let mut displacement = combine_bytes(disp_lo, disp_hi);
+    displacement = match mod_val {
+        0b01 => displacement as i8 as i16,
+        0b10 => displacement,
+        _ => 0,
+    };
+    let address = (disp_lo.unwrap_or(0) as u16 | (disp_hi.unwrap_or(0) as u16) << 8) as usize;
     match (mod_val, rm) {
         (0b11, _) => Operand::Register(decode_register(rm, w)),
 
         (0b00, 0b110) => Operand::DirectAddress(Region {
-            address: displacement as usize,
+            address: address,
             size: 1 + w as usize,
         }),
 
