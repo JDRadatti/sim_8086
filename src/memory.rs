@@ -17,10 +17,6 @@ impl Memory {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.buffer.len()
-    }
-
     pub fn read(&self, region: &Region) -> Result<&[u8], MemoryError> {
         self.check_bounds(region)?;
         Ok(&self.buffer[region.address..][..region.size])
