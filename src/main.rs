@@ -524,18 +524,24 @@ mod memory;
 //
 
 fn main() {
-    // API
-    //
-    // let memory = Memory::new(size: 10000);
-    // let registers = &[
-    //      Register::new("rx"),
-    //      ...,
-    // ],
-    // let instructions = Instructions::new("executable");
-    // let cpu = CPU::new(memory, registers, instructions);
-    //
-    // cpu.run()
-    //
-    //
-    println!("Hello, world!");
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        eprintln!("usage: sim_8086 <binary>");
+        std::process::exit(1);
+    }
+
+    let program = std::fs::read(&args[1]).expect("failed to read binary");
+    if program.len() > 0x10000 {
+        eprintln!("program too large (max 64KB)");
+        std::process::exit(1);
+    }
+
+    let mut cpu = cpu::Cpu::new();
+    cpu.load_program(&program, 0x0000);
+
+    match cpu.run() {
+        Ok(_) => println!("cpu ended execution"),
+        Err(cpu::CpuError::Halted) => println!("program halted"),
+        Err(err) => eprintln!("error: {err}"),
+    }
 }

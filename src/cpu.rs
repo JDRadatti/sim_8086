@@ -14,7 +14,7 @@ pub enum CpuError {
 impl fmt::Display for CpuError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CpuError::InvalidOpcode(addr) => write!(f, "failed to parse instruction at {addr}"),
+            CpuError::InvalidOpcode(addr) => write!(f, "failed to parse instruction {addr}"),
             CpuError::Halted => write!(f, "execution halted"),
         }
     }
@@ -89,5 +89,23 @@ impl Cpu {
 
     fn decode_register(&self, rm: u8, w: u8) -> isa::Register {
         isa::REG_ENCODING[(rm << 1 | w) as usize]
+    }
+
+    pub fn load_program(&mut self, bytes: &[u8], segment: u16) {
+        let address = (segment as usize) << 4;
+        self.memory
+            .write(
+                bytes,
+                &Region {
+                    address,
+                    size: bytes.len(),
+                },
+            )
+            .expect("load failed");
+        self.write_register(&isa::CS, segment);
+        self.write_register(&isa::IP, 0);
+        self.write_register(&isa::SS, segment);
+        self.write_register(&isa::SP, 0x0400);
+        self.write_register(&isa::DS, segment);
     }
 }
