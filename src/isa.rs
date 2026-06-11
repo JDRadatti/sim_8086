@@ -81,12 +81,12 @@ impl fmt::Display for Register {
             Register::BP => write!(f, "bp"),
             Register::SI => write!(f, "si"),
             Register::DI => write!(f, "di"),
-            Register::CS => write!(f, "CS"),
-            Register::DS => write!(f, "DS"),
-            Register::SS => write!(f, "SS"),
-            Register::ES => write!(f, "ES"),
-            Register::IP => write!(f, "IP"),
-            Register::FLAGS => write!(f, "Flags"),
+            Register::CS => write!(f, "cs"),
+            Register::DS => write!(f, "ds"),
+            Register::SS => write!(f, "ss"),
+            Register::ES => write!(f, "es"),
+            Register::IP => write!(f, "ip"),
+            Register::FLAGS => write!(f, "flags"),
         }
     }
 }
@@ -131,24 +131,45 @@ impl fmt::Display for Operand {
     }
 }
 
-pub enum Instruction {
-    Mov(Operand, Operand),
+pub enum OperandForm {
+    RegMemToFromReg,
+    RegImm,
 }
 
-impl fmt::Display for Instruction {
+#[derive(Copy, Clone)]
+pub enum InstructionMnemonic {
+    Mov,
+}
+
+impl fmt::Display for InstructionMnemonic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Instruction::Mov(op1, op2) => write!(f, "mov {op1}, {op2}"),
+            InstructionMnemonic::Mov => write!(f, "mov"),
         }
     }
 }
 
-impl From<&ParseContext<'_>> for Instruction {
-    fn from(_context: &ParseContext) -> Self {
-        Instruction::Mov(
-            Operand::Register(Register::AL),
-            Operand::Register(Register::AL),
-        )
+pub struct Instruction {
+    pub mnemonic: InstructionMnemonic,
+    operands: (Option<Operand>, Option<Operand>),
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ", self.mnemonic)?;
+        if let Some(op1) = &self.operands.0 {
+            write!(f, "{op1}")?;
+        }
+        if let Some(op2) = &self.operands.1 {
+            write!(f, ", {op2}")?;
+        }
+        Ok(())
+    }
+}
+
+impl Instruction {
+    fn from(mnemonic: InstructionMnemonic, operands: (Option<Operand>, Option<Operand>)) -> Self {
+        Self { mnemonic, operands }
     }
 }
 
@@ -167,11 +188,14 @@ enum Identifier {
     DispLo,
     DispHi,
     Reg,
+    DataLo,
+    DataHi,
 }
 
 type ParserFlag = u8;
 const FLAG_DISP8: ParserFlag = 0b1;
 const FLAG_DISP16: ParserFlag = 0b10;
+const FLAG_W16: ParserFlag = 0b100;
 
 struct Parser {
     identifier: Identifier,
@@ -228,7 +252,7 @@ struct ParseContext<'a> {
     bytes: &'a [u8],
     byte_index: usize,
     bit_offset: usize,
-    values: [Option<u8>; 7],
+    values: [Option<u8>; 10], // Size MUST match number of variants of Identifier Enum
     flags: u8,
 }
 
@@ -239,7 +263,7 @@ impl<'a> ParseContext<'a> {
             byte_index: 0,
             bit_offset: 0,
             flags: 0,
-            values: [None; 7], // Size MUST match number of variants of Identifier Enum
+            values: [None; 10],
         }
     }
 
@@ -270,6 +294,9 @@ impl<'a> ParseContext<'a> {
             Some(0b00) if rm_val == Some(0b110) => self.set_flag(FLAG_DISP16),
             _ => {}
         }
+        if self.values[Identifier::W as usize] == Some(1) {
+            self.set_flag(FLAG_W16);
+        }
     }
 }
 
@@ -298,24 +325,50 @@ const PARSER_RM: Parser = Parser::new(Identifier::Rm, None, None, 3);
 const PARSER_DISPLO: Parser =
     Parser::new(Identifier::DispLo, None, Some(FLAG_DISP8 | FLAG_DISP16), 8);
 const PARSER_DISPHI: Parser = Parser::new(Identifier::DispHi, None, Some(FLAG_DISP16), 8);
+const PARSER_DATA_LO: Parser = Parser::new(Identifier::DataLo, None, None, 8);
+const PARSER_DATA_HI: Parser = Parser::new(Identifier::DataHi, None, Some(FLAG_W16), 8);
 
+const fn opcode(opcode: u8, size: usize) -> Parser {
+    Parser::new(Identifier::Opcode, Some(opcode), None, size)
+}
 // --------------------------------------------------------------------------------
 // Instruction Encodings
 // --------------------------------------------------------------------------------
 
-#[rustfmt::skip]
-const MOD_REG_OR_MEM_TO_OR_FROM_REG: &[Parser] = &[
-    Parser::new(Identifier::Opcode, Some(0b100010), None, 6),
-    PARSER_D,
-    PARSER_W,
-    PARSER_MOD,
-    PARSER_REG,
-    PARSER_RM,
-    PARSER_DISPLO,
-    PARSER_DISPHI,
-];
+struct Encoding {
+    form: OperandForm,
+    mnemonic: InstructionMnemonic,
+    parsers: &'static [Parser],
+}
 
-const INSTRUCTION_TABLE: &[&[Parser]] = &[MOD_REG_OR_MEM_TO_OR_FROM_REG];
+const MOV_REG_MEM: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[
+        opcode(0b100010, 6),
+        PARSER_D,
+        PARSER_W,
+        PARSER_MOD,
+        PARSER_REG,
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
+};
+
+const MOV_REG_IMM: Encoding = Encoding {
+    form: OperandForm::RegImm,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[
+        opcode(0b1011, 4),
+        PARSER_W,
+        PARSER_REG,
+        PARSER_DATA_LO,
+        PARSER_DATA_HI,
+    ],
+};
+
+const INSTRUCTION_TABLE: &[Encoding] = &[MOV_REG_MEM, MOV_REG_IMM];
 
 // --------------------------------------------------------------------------------
 // Decode
@@ -330,9 +383,9 @@ pub fn decode(bytes: &[u8]) -> Option<(Instruction, usize)> {
     None
 }
 
-fn try_decode(encoding: &[Parser], bytes: &[u8]) -> Option<(Instruction, usize)> {
+fn try_decode(encoding: &Encoding, bytes: &[u8]) -> Option<(Instruction, usize)> {
     let mut context = ParseContext::new(bytes);
-    for parser in encoding {
+    for parser in encoding.parsers {
         if let Some(flag) = parser.flag
             && !context.check_flag(flag)
         {
@@ -347,6 +400,63 @@ fn try_decode(encoding: &[Parser], bytes: &[u8]) -> Option<(Instruction, usize)>
         context.update_flags();
     }
 
-    let instruction = Instruction::from(&context);
+    let operands = decode_operands(&context, &encoding.form);
+    let instruction = Instruction::from(encoding.mnemonic, operands);
     Some((instruction, context.byte_index))
+}
+
+fn effective_address_region(rm: u8, mod_val: u8, disp_lo: u8, disp_hi: u8) -> Region {
+    match (mod_val, rm) {
+        (0b11, _) => unreachable!(),
+        (0b00, 0b110) => Region {
+            address: (disp_lo as u16 | (disp_hi as u16) << 8) as usize,
+            size: 0,
+        },
+        _ => todo!("effective address for rm={rm}, mod={mod_val}"),
+    }
+}
+
+fn decode_operands(
+    context: &ParseContext,
+    form: &OperandForm,
+) -> (Option<Operand>, Option<Operand>) {
+    match form {
+        OperandForm::RegMemToFromReg => {
+            let w = context.values[Identifier::W as usize].unwrap();
+            let d = context.values[Identifier::D as usize].unwrap();
+            let mod_val = context.values[Identifier::Mod as usize].unwrap();
+            let reg_num = context.values[Identifier::Reg as usize].unwrap();
+            let rm_num = context.values[Identifier::Rm as usize].unwrap();
+
+            let (reg_op, rm_op) = if mod_val == 0b11 {
+                let reg_reg = REG_ENCODING[(reg_num << 1 | w) as usize];
+                let rm_reg = REG_ENCODING[(rm_num << 1 | w) as usize];
+                (Operand::Register(reg_reg), Operand::Register(rm_reg))
+            } else {
+                let reg_reg = REG_ENCODING[(reg_num << 1 | w) as usize];
+                let mem = effective_address_region(
+                    rm_num,
+                    mod_val,
+                    context.values[Identifier::DispLo as usize].unwrap_or(0),
+                    context.values[Identifier::DispHi as usize].unwrap_or(0),
+                );
+                (Operand::Register(reg_reg), Operand::Memory(mem))
+            };
+
+            if d == 1 {
+                (Some(reg_op), Some(rm_op))
+            } else {
+                (Some(rm_op), Some(reg_op))
+            }
+        }
+
+        OperandForm::RegImm => {
+            let w = context[Identifier::W].unwrap();
+            let reg_num = context[Identifier::Reg].unwrap();
+            let reg = REG_ENCODING[(reg_num << 1 | w) as usize];
+            let imm = context[Identifier::DataLo].unwrap() as u16
+                | (context[Identifier::DataHi].unwrap_or(0) as u16) << 8;
+            (Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
+        }
+    }
 }
