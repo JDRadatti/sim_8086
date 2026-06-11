@@ -10,4 +10,44 @@ decode_tests! {
         name: mov_imm16,
         file: "mov_imm16.s",
     },
+    {
+        name: mov_reg_reg8,
+        file: "mov_reg_reg8.s",
+    },
+    {
+        name: mov_reg_reg16,
+        file: "mov_reg_reg16.s",
+    },
+    {
+        name: mov_mem_reg,
+        file: "mov_mem_reg.s",
+    },
+    {
+        name: mov_mem_imm,
+        file: "mov_mem_imm.s",
+    },
+    {
+        name: mov_mem_disp8,
+        file: "mov_mem_disp8.s",
+    },
+    {
+        name: mov_mem_disp16,
+        file: "mov_mem_disp16.s",
+    },
+    {
+        name: mov_imm8_signed,
+        file: "mov_imm8_signed.s",
+    },
+    {
+        name: mov_imm16_signed,
+        file: "mov_imm16_signed.s",
+    },
+    {
+        name: mov_mem_disp8_signed,
+        file: "mov_mem_disp8_signed.s",
+    },
+    {
+        name: mov_mem_disp16_signed,
+        file: "mov_mem_disp16_signed.s",
+    },
 }
