@@ -39,12 +39,12 @@ impl Cpu {
 
     pub fn run(&mut self) -> Result<(), CpuError> {
         loop {
-            let ip = self.read_register(&isa::IP);
+            let ip = self.read_register(&isa::Register::IP.region());
             let buf = self.fetch_instruction_buffer();
             let (instruction, consumed) = isa::decode(buf).ok_or(CpuError::InvalidOpcode(ip))?;
 
             let next_ip = ip + consumed as u16;
-            self.write_register(&isa::IP, next_ip);
+            self.write_register(&isa::Register::IP.region(), next_ip);
 
             println!("{instruction} ({consumed} bytes) [{:#06X}]", ip);
             self.execute(&instruction)?;
@@ -60,8 +60,8 @@ impl Cpu {
     }
 
     fn fetch_instruction_buffer(&self) -> &[u8] {
-        let ip = self.read_register(&isa::IP);
-        let cs = self.read_register(&isa::CS);
+        let ip = self.read_register(&isa::Register::IP.region());
+        let cs = self.read_register(&isa::Register::CS.region());
         let address = ((cs as usize) << 4) + (ip as usize);
 
         // NOTE: possible edge case exists where the instruction segment
