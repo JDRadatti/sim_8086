@@ -1,4 +1,5 @@
 use crate::memory::Region;
+use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Index, IndexMut};
 
@@ -118,7 +119,10 @@ pub const REG_ENCODING: [Register; 16] = [
 pub enum Operand {
     Register(Register),
     Memory(Region),
-    Immediate(u16),
+    DirectAddress(Region),
+    EffectiveAddress(Register, i16),
+    EffectiveAddress2(Register, Register, i16),
+    Immediate(i16),
 }
 
 impl fmt::Display for Operand {
@@ -126,6 +130,23 @@ impl fmt::Display for Operand {
         match self {
             Operand::Register(register) => write!(f, "{register}"),
             Operand::Memory(_region) => todo!("display memory operand"),
+            Operand::DirectAddress(region) => write!(f, "[{}]", region.address),
+            Operand::EffectiveAddress(register1, displacement) => match displacement.cmp(&0) {
+                Ordering::Less => write!(f, "[{register1} - {}]", displacement.unsigned_abs()),
+                Ordering::Greater => write!(f, "[{register1} + {displacement}]"),
+                Ordering::Equal => write!(f, "[{register1}]"),
+            },
+            Operand::EffectiveAddress2(register1, register2, displacement) => {
+                match displacement.cmp(&0) {
+                    Ordering::Less => write!(
+                        f,
+                        "[{register1} + {register2} - {}]",
+                        displacement.unsigned_abs()
+                    ),
+                    Ordering::Greater => write!(f, "[{register1} + {register2} + {displacement}]"),
+                    Ordering::Equal => write!(f, "[{register1} + {register2}]"),
+                }
+            }
             Operand::Immediate(imm) => write!(f, "{imm}"),
         }
     }
@@ -405,43 +426,15 @@ fn try_decode(encoding: &Encoding, bytes: &[u8]) -> Option<(Instruction, usize)>
     Some((instruction, context.byte_index))
 }
 
-fn effective_address_region(rm: u8, mod_val: u8, disp_lo: u8, disp_hi: u8) -> Region {
-    match (mod_val, rm) {
-        (0b11, _) => unreachable!(),
-        (0b00, 0b110) => Region {
-            address: (disp_lo as u16 | (disp_hi as u16) << 8) as usize,
-            size: 0,
-        },
-        _ => todo!("effective address for rm={rm}, mod={mod_val}"),
-    }
-}
-
 fn decode_operands(
     context: &ParseContext,
     form: &OperandForm,
 ) -> (Option<Operand>, Option<Operand>) {
     match form {
         OperandForm::RegMemToFromReg => {
-            let w = context.values[Identifier::W as usize].unwrap();
             let d = context.values[Identifier::D as usize].unwrap();
-            let mod_val = context.values[Identifier::Mod as usize].unwrap();
-            let reg_num = context.values[Identifier::Reg as usize].unwrap();
-            let rm_num = context.values[Identifier::Rm as usize].unwrap();
-
-            let (reg_op, rm_op) = if mod_val == 0b11 {
-                let reg_reg = REG_ENCODING[(reg_num << 1 | w) as usize];
-                let rm_reg = REG_ENCODING[(rm_num << 1 | w) as usize];
-                (Operand::Register(reg_reg), Operand::Register(rm_reg))
-            } else {
-                let reg_reg = REG_ENCODING[(reg_num << 1 | w) as usize];
-                let mem = effective_address_region(
-                    rm_num,
-                    mod_val,
-                    context.values[Identifier::DispLo as usize].unwrap_or(0),
-                    context.values[Identifier::DispHi as usize].unwrap_or(0),
-                );
-                (Operand::Register(reg_reg), Operand::Memory(mem))
-            };
+            let reg_op = Operand::Register(reg_register(context));
+            let rm_op = rm_field_encoding(context);
 
             if d == 1 {
                 (Some(reg_op), Some(rm_op))
@@ -451,12 +444,52 @@ fn decode_operands(
         }
 
         OperandForm::RegImm => {
-            let w = context[Identifier::W].unwrap();
-            let reg_num = context[Identifier::Reg].unwrap();
-            let reg = REG_ENCODING[(reg_num << 1 | w) as usize];
-            let imm = context[Identifier::DataLo].unwrap() as u16
-                | (context[Identifier::DataHi].unwrap_or(0) as u16) << 8;
+            let reg = reg_register(&context);
+            let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
             (Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
         }
     }
+}
+
+// Table 4-10
+fn rm_field_encoding(context: &ParseContext) -> Operand {
+    let mod_val = context.values[Identifier::Mod as usize].unwrap();
+    let rm = context.values[Identifier::Rm as usize].unwrap();
+    let w = context.values[Identifier::W as usize].unwrap();
+    let disp_lo = context.values[Identifier::DispLo as usize];
+    let disp_hi = context.values[Identifier::DispHi as usize];
+    let displacement = combine_bytes(disp_lo, disp_hi);
+    match (mod_val, rm) {
+        (0b11, _) => Operand::Register(decode_register(rm, w)),
+
+        (0b00, 0b110) => Operand::DirectAddress(Region {
+            address: displacement as usize,
+            size: 1 + w as usize,
+        }),
+
+        (_, 0b000) => Operand::EffectiveAddress2(Register::BX, Register::SI, displacement),
+        (_, 0b001) => Operand::EffectiveAddress2(Register::BX, Register::DI, displacement),
+        (_, 0b010) => Operand::EffectiveAddress2(Register::BP, Register::SI, displacement),
+        (_, 0b011) => Operand::EffectiveAddress2(Register::BP, Register::DI, displacement),
+        (_, 0b100) => Operand::EffectiveAddress(Register::SI, displacement),
+        (_, 0b101) => Operand::EffectiveAddress(Register::DI, displacement),
+        (_, 0b110) => Operand::EffectiveAddress(Register::BP, displacement),
+        (_, 0b111) => Operand::EffectiveAddress(Register::BX, displacement),
+
+        _ => todo!("effective address for rm={rm}, mod={mod_val}"),
+    }
+}
+
+fn decode_register(reg: u8, w: u8) -> Register {
+    REG_ENCODING[(reg << 1 | w) as usize]
+}
+
+fn reg_register(context: &ParseContext) -> Register {
+    let reg = context.values[Identifier::Reg as usize].unwrap();
+    let w = context.values[Identifier::W as usize].unwrap();
+    decode_register(reg, w)
+}
+
+fn combine_bytes(lo: Option<u8>, hi: Option<u8>) -> i16 {
+    lo.unwrap_or(0) as i16 | (hi.unwrap_or(0) as i16) << 8
 }
