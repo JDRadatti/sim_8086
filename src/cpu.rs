@@ -46,14 +46,14 @@ impl Cpu {
             let next_ip = ip + consumed as u16;
             self.write_register(&isa::Register::IP.region(), next_ip);
 
-            println!("{instruction} ({consumed} bytes) [{:#06X}]", ip);
-            self.execute(&instruction)?;
+            println!("{instruction}");
+            //self.execute(&instruction)?;
         }
     }
 
     fn execute(&mut self, instruction: &isa::Instruction) -> Result<(), CpuError> {
-        match instruction {
-            isa::Instruction::Mov(_, _) => {
+        match instruction.mnemonic {
+            isa::InstructionMnemonic::Mov => {
                 todo!("execute mov")
             }
         }
@@ -85,10 +85,6 @@ impl Cpu {
         self.register_file
             .write(&value.to_le_bytes()[..region.size], region)
             .expect("register write failed");
-    }
-
-    fn decode_register(&self, rm: u8, w: u8) -> isa::Register {
-        isa::REG_ENCODING[(rm << 1 | w) as usize]
     }
 
     pub fn load_program(&mut self, bytes: &[u8], segment: u16) {
