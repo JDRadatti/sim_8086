@@ -1,4 +1,4 @@
 /target
 *.bin
-*._ref
-*._dec
+*_ref.*
+*_dec.*
