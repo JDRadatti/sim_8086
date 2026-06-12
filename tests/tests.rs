@@ -58,4 +58,16 @@ decode_tests! {
         name: mov_acc_mem,
         file: "mov_acc_mem.s",
     },
+    {
+        name: mov_seg_reg,
+        file: "mov_seg_reg.s",
+    },
+    {
+        name: mov_seg_mem,
+        file: "mov_seg_mem.s",
+    },
+    {
+        name: mov_zero_disp,
+        file: "mov_zero_disp.s",
+    },
 }
