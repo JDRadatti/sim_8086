@@ -152,7 +152,10 @@ impl fmt::Display for Operand {
 
 pub enum OperandForm {
     RegMemToFromReg,
+    ImmToRegMem,
     RegImm,
+    MemToAcc,
+    AccToMem,
 }
 
 #[derive(Copy, Clone)]
@@ -386,7 +389,7 @@ const MOV_REG_MEM: Encoding = Encoding {
 };
 
 const MOV_IMM_REGMEM: Encoding = Encoding {
-    form: OperandForm::RegMemToFromReg,
+    form: OperandForm::ImmToRegMem,
     mnemonic: InstructionMnemonic::Mov,
     parsers: &[
         opcode(0b1100011, 7),
@@ -414,13 +417,13 @@ const MOV_REG_IMM: Encoding = Encoding {
 };
 
 const MOV_MEM_ACC: Encoding = Encoding {
-    form: OperandForm::RegMemToFromReg,
+    form: OperandForm::MemToAcc,
     mnemonic: InstructionMnemonic::Mov,
     parsers: &[opcode(0b1010000, 7), PARSER_W, ADDR_LO, ADDR_HI],
 };
 
 const MOV_ACC_MEM: Encoding = Encoding {
-    form: OperandForm::RegMemToFromReg,
+    form: OperandForm::AccToMem,
     mnemonic: InstructionMnemonic::Mov,
     parsers: &[opcode(0b1010001, 7), PARSER_W, ADDR_LO, ADDR_HI],
 };
@@ -485,11 +488,34 @@ fn decode_operands(
             }
         }
 
+        OperandForm::ImmToRegMem => {
+            let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
+            let rm_op = rm_field_encoding(context);
+            (Some(rm_op), Some(Operand::Immediate(imm)))
+
+        }
+
         OperandForm::RegImm => {
             let reg = reg_register(&context);
             let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
             (Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
         }
+
+        OperandForm::AccToMem => {
+            let address = combine_bytes(context[Identifier::AddrLo], context[Identifier::AddrHi]) as usize;
+            let w = context[Identifier::W].unwrap();
+            let acc = if w == 0 { Register::AL } else { Register::AX };
+            let region = Region { address, size: 1 + w as usize };
+            (Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
+        },
+
+        OperandForm::MemToAcc => {
+            let address = combine_bytes(context[Identifier::AddrLo], context[Identifier::AddrHi]) as usize;
+            let w = context[Identifier::W].unwrap();
+            let acc = if w == 0 { Register::AL } else { Register::AX };
+            let region = Region { address, size: 1 + w as usize };
+            (Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
+        },
     }
 }
 
