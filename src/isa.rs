@@ -150,6 +150,41 @@ impl fmt::Display for Operand {
     }
 }
 
+struct Operands {
+    size: Option<bool>, 
+    op1: Option<Operand>, 
+    op2: Option<Operand>
+}
+
+impl Operands {
+    fn new(w: Option<u8>, op1: Option<Operand>, op2: Option<Operand>) -> Self {
+        let op1_is_register = op1.is_some() && matches!(op1.as_ref().unwrap(), Operand::Register(_));
+        let op2_is_register = op2.is_some() && matches!(op2.as_ref().unwrap(), Operand::Register(_));
+        let size = if w.is_some() && !(op1_is_register || op2_is_register) {
+            Some(w.unwrap() == 1)
+        } else {
+            None
+        };
+        Self { size, op1, op2 }
+    }
+}
+
+impl fmt::Display for Operands {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(word) = self.size {
+            let size = if word { "word" } else { "byte" };
+            write!(f, "{size} ")?;
+        }
+        if let Some(op1) = &self.op1 {
+            write!(f, "{op1}")?;
+        }
+        if let Some(op2) = &self.op2 {
+            write!(f, ", {op2}")?;
+        }
+        Ok(())
+    }
+}
+
 pub enum OperandForm {
     RegMemToFromReg,
     ImmToRegMem,
@@ -173,24 +208,18 @@ impl fmt::Display for InstructionMnemonic {
 
 pub struct Instruction {
     pub mnemonic: InstructionMnemonic,
-    operands: (Option<Operand>, Option<Operand>),
+    operands: Operands,
 }
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ", self.mnemonic)?;
-        if let Some(op1) = &self.operands.0 {
-            write!(f, "{op1}")?;
-        }
-        if let Some(op2) = &self.operands.1 {
-            write!(f, ", {op2}")?;
-        }
+        write!(f, "{} {}", self.mnemonic, self.operands)?;
         Ok(())
     }
 }
 
 impl Instruction {
-    fn from(mnemonic: InstructionMnemonic, operands: (Option<Operand>, Option<Operand>)) -> Self {
+    fn from(mnemonic: InstructionMnemonic, operands: Operands) -> Self {
         Self { mnemonic, operands }
     }
 }
@@ -471,10 +500,7 @@ fn try_decode(encoding: &Encoding, bytes: &[u8]) -> Option<(Instruction, usize)>
     Some((instruction, context.byte_index))
 }
 
-fn decode_operands(
-    context: &ParseContext,
-    form: &OperandForm,
-) -> (Option<Operand>, Option<Operand>) {
+fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
     match form {
         OperandForm::RegMemToFromReg => {
             let d = context[Identifier::D].unwrap();
@@ -482,23 +508,22 @@ fn decode_operands(
             let rm_op = rm_field_encoding(context);
 
             if d == 1 {
-                (Some(reg_op), Some(rm_op))
+                Operands::new(None, Some(reg_op), Some(rm_op))
             } else {
-                (Some(rm_op), Some(reg_op))
+                Operands::new(None, Some(rm_op), Some(reg_op))
             }
         }
 
         OperandForm::ImmToRegMem => {
             let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
             let rm_op = rm_field_encoding(context);
-            (Some(rm_op), Some(Operand::Immediate(imm)))
-
+            Operands::new(context[Identifier::W], Some(rm_op), Some(Operand::Immediate(imm)))
         }
 
         OperandForm::RegImm => {
             let reg = reg_register(&context);
             let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
-            (Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
+            Operands::new(None, Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
         }
 
         OperandForm::AccToMem => {
@@ -506,7 +531,7 @@ fn decode_operands(
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let region = Region { address, size: 1 + w as usize };
-            (Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
+            Operands::new(None, Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
         },
 
         OperandForm::MemToAcc => {
@@ -514,7 +539,7 @@ fn decode_operands(
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let region = Region { address, size: 1 + w as usize };
-            (Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
+            Operands::new(None, Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
         },
     }
 }
