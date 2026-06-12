@@ -118,7 +118,6 @@ pub const REG_ENCODING: [Register; 16] = [
 
 pub enum Operand {
     Register(Register),
-    Memory(Region),
     DirectAddress(Region),
     EffectiveAddress(Register, i16),
     EffectiveAddress2(Register, Register, i16),
@@ -129,7 +128,6 @@ impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Operand::Register(register) => write!(f, "{register}"),
-            Operand::Memory(_region) => todo!("display memory operand"),
             Operand::DirectAddress(region) => write!(f, "[{}]", region.address),
             Operand::EffectiveAddress(register1, displacement) => match displacement.cmp(&0) {
                 Ordering::Less => write!(f, "[{register1} - {}]", displacement.unsigned_abs()),
