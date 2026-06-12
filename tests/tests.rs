@@ -50,4 +50,12 @@ decode_tests! {
         name: mov_mem_disp16_signed,
         file: "mov_mem_disp16_signed.s",
     },
+    {
+        name: mov_mem_acc,
+        file: "mov_mem_acc.s",
+    },
+    {
+        name: mov_acc_mem,
+        file: "mov_acc_mem.s",
+    },
 }
