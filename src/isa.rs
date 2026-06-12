@@ -121,7 +121,7 @@ pub enum Operand {
     DirectAddress(Region),
     EffectiveAddress(Register, i16),
     EffectiveAddress2(Register, Register, i16),
-    Immediate(i16),
+    Immediate(u16),
 }
 
 impl fmt::Display for Operand {
@@ -515,19 +515,19 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
         }
 
         OperandForm::ImmToRegMem => {
-            let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
+            let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
             let rm_op = rm_field_encoding(context);
             Operands::new(context[Identifier::W], Some(rm_op), Some(Operand::Immediate(imm)))
         }
 
         OperandForm::RegImm => {
             let reg = reg_register(&context);
-            let imm = combine_bytes(context[Identifier::DataLo], context[Identifier::DataHi]);
+            let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
             Operands::new(None, Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
         }
 
         OperandForm::AccToMem => {
-            let address = combine_bytes(context[Identifier::AddrLo], context[Identifier::AddrHi]) as usize;
+            let address = combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16 as usize;
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let region = Region { address, size: 1 + w as usize };
@@ -535,7 +535,7 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
         },
 
         OperandForm::MemToAcc => {
-            let address = combine_bytes(context[Identifier::AddrLo], context[Identifier::AddrHi]) as usize;
+            let address = combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16 as usize;
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let region = Region { address, size: 1 + w as usize };
@@ -551,17 +551,16 @@ fn rm_field_encoding(context: &ParseContext) -> Operand {
     let w = context[Identifier::W].unwrap();
     let disp_lo = context[Identifier::DispLo];
     let disp_hi = context[Identifier::DispHi];
-    let combined = combine_bytes(disp_lo, disp_hi);
     let displacement = match mod_val {
-        0b01 => combined as i8 as i16,
-        0b10 => combined,
+        0b01 => combine_bytes_i16(disp_lo, None) as i8 as i16,
+        0b10 => combine_bytes_i16(disp_lo, disp_hi),
         _ => 0,
     };
     match (mod_val, rm) {
         (0b11, _) => Operand::Register(decode_register(rm, w)),
 
         (0b00, 0b110) => Operand::DirectAddress(Region {
-            address: combined as usize,
+            address: combine_bytes_i16(disp_lo, disp_hi) as usize,
             size: 1 + w as usize,
         }),
 
@@ -588,6 +587,10 @@ fn reg_register(context: &ParseContext) -> Register {
     decode_register(reg, w)
 }
 
-fn combine_bytes(lo: Option<u8>, hi: Option<u8>) -> i16 {
-    lo.unwrap_or(0) as i16 | (hi.unwrap_or(0) as i16) << 8
+fn combine_bytes_u16(lo: Option<u8>, hi: Option<u8>) -> u16 {
+    lo.unwrap_or(0) as u16 | (hi.unwrap_or(0) as u16) << 8
+}
+
+fn combine_bytes_i16(lo: Option<u8>, hi: Option<u8>) -> i16 {
+    combine_bytes_u16(lo, hi) as i16
 }
