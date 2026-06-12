@@ -1,4 +1,4 @@
-use crate::memory::Region;
+use crate::memory::{ REGISTER_BASE, Region, };
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Index, IndexMut};
@@ -36,30 +36,31 @@ pub enum Register {
 #[rustfmt::skip]
 impl Register {
     pub fn region(self) -> Region {
-        match self {
-            Register::AL => Region { address: 0, size: 1, },
-            Register::AX => Region { address: 0, size: 2, },
-            Register::AH => Region { address: 1, size: 1, },
-            Register::CL => Region { address: 2, size: 1, },
-            Register::CX => Region { address: 2, size: 2, },
-            Register::CH => Region { address: 3, size: 1, },
-            Register::DL => Region { address: 4, size: 1, },
-            Register::DX => Region { address: 4, size: 2, },
-            Register::DH => Region { address: 5, size: 1, },
-            Register::BL => Region { address: 6, size: 1, },
-            Register::BX => Region { address: 6, size: 2, },
-            Register::BH => Region { address: 7, size: 1, },
-            Register::SP => Region { address: 8, size: 2, },
-            Register::BP => Region { address: 10, size: 2, },
-            Register::SI => Region { address: 12, size: 2, },
-            Register::DI => Region { address: 14, size: 2, },
-            Register::CS => Region { address: 16, size: 2, },
-            Register::DS => Region { address: 18, size: 2, },
-            Register::SS => Region { address: 20, size: 2, },
-            Register::ES => Region { address: 22, size: 2, },
-            Register::IP => Region { address: 24, size: 2, },
-            Register::FLAGS => Region { address: 26, size: 2, },
-        }
+        let (offset, size) = match self {
+            Register::AL => (0, 1),
+            Register::AX => (0, 2),
+            Register::AH => (1, 1),
+            Register::CL => (2, 1),
+            Register::CX => (2, 2),
+            Register::CH => (3, 1),
+            Register::DL => (4, 1),
+            Register::DX => (4, 2),
+            Register::DH => (5, 1),
+            Register::BL => (6, 1),
+            Register::BX => (6, 2),
+            Register::BH => (7, 1),
+            Register::SP => (8, 2),
+            Register::BP => (10, 2),
+            Register::SI => (12, 2),
+            Register::DI => (14, 2),
+            Register::CS => (16, 2),
+            Register::DS => (18, 2),
+            Register::SS => (20, 2),
+            Register::ES => (22, 2),
+            Register::IP => (24, 2),
+            Register::FLAGS => (26, 2),
+        };
+        Region { address: REGISTER_BASE + offset, size }
     }
 }
 

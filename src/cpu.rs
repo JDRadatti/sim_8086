@@ -1,5 +1,5 @@
 use crate::isa;
-use crate::memory::{Memory, Region};
+use crate::memory::{Bus, MemoryError, Region};
 use std::fmt;
 
 // --------------------------------------------------------------------------------
@@ -9,6 +9,7 @@ use std::fmt;
 pub enum CpuError {
     InvalidOpcode(u16),
     Halted,
+    Memory(MemoryError),
 }
 
 impl fmt::Display for CpuError {
@@ -16,7 +17,14 @@ impl fmt::Display for CpuError {
         match self {
             CpuError::InvalidOpcode(addr) => write!(f, "failed to parse instruction {addr}"),
             CpuError::Halted => write!(f, "execution halted"),
+            CpuError::Memory(err) => write!(f, "memory error: {err}"),
         }
+    }
+}
+
+impl From<MemoryError> for CpuError {
+    fn from(err: MemoryError) -> Self {
+        CpuError::Memory(err)
     }
 }
 
@@ -25,39 +33,37 @@ impl fmt::Display for CpuError {
 // --------------------------------------------------------------------------------
 
 pub struct Cpu {
-    memory: Memory,
-    register_file: Memory,
+    bus: Bus,
 }
 
 impl Cpu {
     pub fn new() -> Self {
-        Self {
-            memory: Memory::new(1_048_576),
-            register_file: Memory::new(28),
-        }
+        Self { bus: Bus::new() }
     }
 
     pub fn run_decode(&mut self) -> Result<(), CpuError> {
-        loop {
-            let instruction = self.step()?;
-            self.execute(&instruction)?;
-        }
-    }
-
-    pub fn run_execute(&mut self) -> Result<(), CpuError> {
         loop {
             let instruction = self.step()?;
             println!("{instruction}");
         }
     }
 
+    pub fn run_execute(&mut self) -> Result<(), CpuError> {
+        loop {
+            let instruction = self.step()?;
+            self.execute(&instruction)?;
+        }
+    }
+
     pub fn step(&mut self) -> Result<isa::Instruction, CpuError> {
-        let ip = self.read_register(&isa::Register::IP.region());
-        let buf = self.fetch_instruction_buffer();
+        let ip = self.bus.read_u16(&isa::Register::IP.region()).expect("register read failed");
+        let buf = self.fetch_instruction_buffer()?;
         let (instruction, consumed) = isa::decode(buf).ok_or(CpuError::InvalidOpcode(ip))?;
 
         let next_ip = ip + consumed as u16;
-        self.write_register(&isa::Register::IP.region(), next_ip);
+        self.bus
+            .write_u16(next_ip, &isa::Register::IP.region())
+            .expect("register write failed");
         Ok(instruction)
     }
 
@@ -69,37 +75,16 @@ impl Cpu {
         }
     }
 
-    fn fetch_instruction_buffer(&self) -> &[u8] {
-        let ip = self.read_register(&isa::Register::IP.region());
-        let cs = self.read_register(&isa::Register::CS.region());
+    fn fetch_instruction_buffer(&self) -> Result<&[u8], CpuError> {
+        let ip = self.bus.read_u16(&isa::Register::IP.region()).expect("register read failed");
+        let cs = self.bus.read_u16(&isa::Register::CS.region()).expect("register read failed");
         let address = ((cs as usize) << 4) + (ip as usize);
-
-        // NOTE: possible edge case exists where the instruction segment
-        // is at 100% capacity and the last instruction will fail.
-        self.memory
-            .read(&Region { address, size: 6 })
-            .expect("instruction fetch failed")
-    }
-
-    fn read_register(&self, region: &Region) -> u16 {
-        let bytes = self
-            .register_file
-            .read(region)
-            .expect("register read failed");
-        let mut buf = [0u8; 2];
-        buf[..bytes.len()].copy_from_slice(bytes);
-        u16::from_le_bytes(buf)
-    }
-
-    fn write_register(&mut self, region: &Region, value: u16) {
-        self.register_file
-            .write(&value.to_le_bytes()[..region.size], region)
-            .expect("register write failed");
+        self.bus.read(&Region { address, size: 6 }).map_err(CpuError::from)
     }
 
     pub fn load_program(&mut self, bytes: &[u8], segment: u16) {
         let address = (segment as usize) << 4;
-        self.memory
+        self.bus
             .write(
                 bytes,
                 &Region {
@@ -108,10 +93,20 @@ impl Cpu {
                 },
             )
             .expect("load failed");
-        self.write_register(&isa::Register::CS.region(), segment);
-        self.write_register(&isa::Register::IP.region(), 0);
-        self.write_register(&isa::Register::SS.region(), segment);
-        self.write_register(&isa::Register::SP.region(), 0x0400);
-        self.write_register(&isa::Register::DS.region(), segment);
+        self.bus
+            .write_u16(segment, &isa::Register::CS.region())
+            .expect("register write failed");
+        self.bus
+            .write_u16(0, &isa::Register::IP.region())
+            .expect("register write failed");
+        self.bus
+            .write_u16(segment, &isa::Register::SS.region())
+            .expect("register write failed");
+        self.bus
+            .write_u16(0x0400, &isa::Register::SP.region())
+            .expect("register write failed");
+        self.bus
+            .write_u16(segment, &isa::Register::DS.region())
+            .expect("register write failed");
     }
 }
