@@ -352,8 +352,8 @@ const PARSER_DISPLO: Parser =
 const PARSER_DISPHI: Parser = Parser::new(Identifier::DispHi, None, Some(FLAG_DISP16), 8);
 const PARSER_DATA_LO: Parser = Parser::new(Identifier::DataLo, None, None, 8);
 const PARSER_DATA_HI: Parser = Parser::new(Identifier::DataHi, None, Some(FLAG_W16), 8);
-const ADDR_LO: Parser = Parser::new(Identifier::AddrLo, None, None, 8);
-const ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, Some(FLAG_W16), 8);
+const PARSER_ADDR_LO: Parser = Parser::new(Identifier::AddrLo, None, None, 8);
+const PARSER_ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, None, 8); 
 
 const fn opcode(opcode: u8, size: usize) -> Parser {
     Parser::new(Identifier::Opcode, Some(opcode), None, size)
@@ -419,13 +419,13 @@ const MOV_REG_IMM: Encoding = Encoding {
 const MOV_MEM_ACC: Encoding = Encoding {
     form: OperandForm::MemToAcc,
     mnemonic: InstructionMnemonic::Mov,
-    parsers: &[opcode(0b1010000, 7), PARSER_W, ADDR_LO, ADDR_HI],
+    parsers: &[opcode(0b1010000, 7), PARSER_W, PARSER_ADDR_LO, PARSER_ADDR_HI],
 };
 
 const MOV_ACC_MEM: Encoding = Encoding {
     form: OperandForm::AccToMem,
     mnemonic: InstructionMnemonic::Mov,
-    parsers: &[opcode(0b1010001, 7), PARSER_W, ADDR_LO, ADDR_HI],
+    parsers: &[opcode(0b1010001, 7), PARSER_W, PARSER_ADDR_LO, PARSER_ADDR_HI],
 };
 
 const INSTRUCTION_TABLE: &[Encoding] = &[
