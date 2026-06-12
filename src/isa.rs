@@ -311,15 +311,15 @@ impl<'a> ParseContext<'a> {
     }
 
     fn update_flags(&mut self) {
-        let mod_val = self.values[Identifier::Mod as usize];
-        let rm_val = self.values[Identifier::Rm as usize];
+        let mod_val = self[Identifier::Mod];
+        let rm_val = self[Identifier::Rm];
         match mod_val {
             Some(0b01) => self.set_flag(FLAG_DISP8),
             Some(0b10) => self.set_flag(FLAG_DISP16),
             Some(0b00) if rm_val == Some(0b110) => self.set_flag(FLAG_DISP16),
             _ => {}
         }
-        if self.values[Identifier::W as usize] == Some(1) {
+        if self[Identifier::W] == Some(1) {
             self.set_flag(FLAG_W16);
         }
     }
@@ -477,7 +477,7 @@ fn decode_operands(
 ) -> (Option<Operand>, Option<Operand>) {
     match form {
         OperandForm::RegMemToFromReg => {
-            let d = context.values[Identifier::D as usize].unwrap();
+            let d = context[Identifier::D].unwrap();
             let reg_op = Operand::Register(reg_register(context));
             let rm_op = rm_field_encoding(context);
 
@@ -521,11 +521,11 @@ fn decode_operands(
 
 // Table 4-10
 fn rm_field_encoding(context: &ParseContext) -> Operand {
-    let mod_val = context.values[Identifier::Mod as usize].unwrap();
-    let rm = context.values[Identifier::Rm as usize].unwrap();
-    let w = context.values[Identifier::W as usize].unwrap();
-    let disp_lo = context.values[Identifier::DispLo as usize];
-    let disp_hi = context.values[Identifier::DispHi as usize];
+    let mod_val = context[Identifier::Mod].unwrap();
+    let rm = context[Identifier::Rm].unwrap();
+    let w = context[Identifier::W].unwrap();
+    let disp_lo = context[Identifier::DispLo];
+    let disp_hi = context[Identifier::DispHi];
     let combined = combine_bytes(disp_lo, disp_hi);
     let displacement = match mod_val {
         0b01 => combined as i8 as i16,
@@ -558,8 +558,8 @@ fn decode_register(reg: u8, w: u8) -> Register {
 }
 
 fn reg_register(context: &ParseContext) -> Register {
-    let reg = context.values[Identifier::Reg as usize].unwrap();
-    let w = context.values[Identifier::W as usize].unwrap();
+    let reg = context[Identifier::Reg].unwrap();
+    let w = context[Identifier::W].unwrap();
     decode_register(reg, w)
 }
 
