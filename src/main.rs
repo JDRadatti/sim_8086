@@ -525,12 +525,12 @@ mod memory;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
+    if args.len() < 3 {
         eprintln!("usage: sim_8086 <mode> <binary>");
         std::process::exit(1);
     }
 
-    // TODO: program expects mode as first arg, right now we just skip it
+    let mode = &args[1];
     let program = std::fs::read(&args[2]).expect("failed to read binary");
     if program.len() > 0x10000 {
         eprintln!("program too large (max 64KB)");
@@ -540,9 +540,19 @@ fn main() {
     let mut cpu = cpu::Cpu::new();
     cpu.load_program(&program, 0x0000);
 
-    match cpu.run() {
-        Ok(_) => println!("cpu ended execution"),
-        Err(cpu::CpuError::Halted) => println!("program halted"),
-        Err(err) => eprintln!("error: {err}"),
+    match mode.as_str() {
+        "decode" => match cpu.run_decode() {
+            Ok(_) => {}
+            Err(err) => eprintln!("error: {err}"),
+        },
+        "execute" => match cpu.run_execute() {
+            Ok(_) => println!("cpu ended execution"),
+            Err(cpu::CpuError::Halted) => println!("program halted"),
+            Err(err) => eprintln!("error: {err}"),
+        },
+        _ => {
+            eprintln!("unknown mode: {mode}");
+            std::process::exit(1);
+        }
     }
 }

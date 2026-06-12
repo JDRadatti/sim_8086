@@ -37,18 +37,28 @@ impl Cpu {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), CpuError> {
+    pub fn run_decode(&mut self) -> Result<(), CpuError> {
         loop {
-            let ip = self.read_register(&isa::Register::IP.region());
-            let buf = self.fetch_instruction_buffer();
-            let (instruction, consumed) = isa::decode(buf).ok_or(CpuError::InvalidOpcode(ip))?;
-
-            let next_ip = ip + consumed as u16;
-            self.write_register(&isa::Register::IP.region(), next_ip);
-
-            println!("{instruction}");
-            //self.execute(&instruction)?;
+            let instruction = self.step()?;
+            self.execute(&instruction)?;
         }
+    }
+
+    pub fn run_execute(&mut self) -> Result<(), CpuError> {
+        loop {
+            let instruction = self.step()?;
+            println!("{instruction}");
+        }
+    }
+
+    pub fn step(&mut self) -> Result<isa::Instruction, CpuError> {
+        let ip = self.read_register(&isa::Register::IP.region());
+        let buf = self.fetch_instruction_buffer();
+        let (instruction, consumed) = isa::decode(buf).ok_or(CpuError::InvalidOpcode(ip))?;
+
+        let next_ip = ip + consumed as u16;
+        self.write_register(&isa::Register::IP.region(), next_ip);
+        Ok(instruction)
     }
 
     fn execute(&mut self, instruction: &isa::Instruction) -> Result<(), CpuError> {
