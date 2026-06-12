@@ -201,6 +201,7 @@ impl Instruction {
 #[derive(Copy, Clone)]
 #[repr(usize)]
 enum Identifier {
+    Literal,
     Opcode,
     Mod,
     D,
@@ -211,6 +212,8 @@ enum Identifier {
     Reg,
     DataLo,
     DataHi,
+    AddrLo,
+    AddrHi,
 }
 
 type ParserFlag = u8;
@@ -273,7 +276,7 @@ struct ParseContext<'a> {
     bytes: &'a [u8],
     byte_index: usize,
     bit_offset: usize,
-    values: [Option<u8>; 10], // Size MUST match number of variants of Identifier Enum
+    values: [Option<u8>; 13], // Size MUST match number of variants of Identifier Enum
     flags: u8,
 }
 
@@ -284,7 +287,7 @@ impl<'a> ParseContext<'a> {
             byte_index: 0,
             bit_offset: 0,
             flags: 0,
-            values: [None; 10],
+            values: [None; 13],
         }
     }
 
@@ -348,10 +351,17 @@ const PARSER_DISPLO: Parser =
 const PARSER_DISPHI: Parser = Parser::new(Identifier::DispHi, None, Some(FLAG_DISP16), 8);
 const PARSER_DATA_LO: Parser = Parser::new(Identifier::DataLo, None, None, 8);
 const PARSER_DATA_HI: Parser = Parser::new(Identifier::DataHi, None, Some(FLAG_W16), 8);
+const ADDR_LO: Parser = Parser::new(Identifier::AddrLo, None, None, 8);
+const ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, Some(FLAG_W16), 8);
 
 const fn opcode(opcode: u8, size: usize) -> Parser {
     Parser::new(Identifier::Opcode, Some(opcode), None, size)
 }
+
+const fn literal(literal: u8, size: usize) -> Parser {
+    Parser::new(Identifier::Literal, Some(literal), None, size)
+}
+
 // --------------------------------------------------------------------------------
 // Instruction Encodings
 // --------------------------------------------------------------------------------
@@ -377,6 +387,22 @@ const MOV_REG_MEM: Encoding = Encoding {
     ],
 };
 
+const MOV_IMM_REGMEM: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[
+        opcode(0b1100011, 7),
+        PARSER_W,
+        PARSER_MOD,
+        literal(0b000, 3),
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+        PARSER_DATA_LO,
+        PARSER_DATA_HI,
+    ],
+};
+
 const MOV_REG_IMM: Encoding = Encoding {
     form: OperandForm::RegImm,
     mnemonic: InstructionMnemonic::Mov,
@@ -389,7 +415,25 @@ const MOV_REG_IMM: Encoding = Encoding {
     ],
 };
 
-const INSTRUCTION_TABLE: &[Encoding] = &[MOV_REG_MEM, MOV_REG_IMM];
+const MOV_MEM_ACC: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[opcode(0b1010000, 7), PARSER_W, ADDR_LO, ADDR_HI],
+};
+
+const MOV_ACC_MEM: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[opcode(0b1010001, 7), PARSER_W, ADDR_LO, ADDR_HI],
+};
+
+const INSTRUCTION_TABLE: &[Encoding] = &[
+    MOV_REG_MEM,
+    MOV_IMM_REGMEM,
+    MOV_REG_IMM,
+    MOV_MEM_ACC,
+    MOV_ACC_MEM,
+];
 
 // --------------------------------------------------------------------------------
 // Decode
