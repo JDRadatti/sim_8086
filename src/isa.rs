@@ -191,6 +191,8 @@ pub enum OperandForm {
     RegImm,
     MemToAcc,
     AccToMem,
+    SegToRegMem,
+    RegMemToSeg,
 }
 
 #[derive(Copy, Clone)]
@@ -244,6 +246,7 @@ enum Identifier {
     DataHi,
     AddrLo,
     AddrHi,
+    Sr,
 }
 
 type ParserFlag = u8;
@@ -306,7 +309,7 @@ struct ParseContext<'a> {
     bytes: &'a [u8],
     byte_index: usize,
     bit_offset: usize,
-    values: [Option<u8>; 13], // Size MUST match number of variants of Identifier Enum
+    values: [Option<u8>; 14], // Size MUST match number of variants of Identifier Enum
     flags: u8,
 }
 
@@ -317,7 +320,7 @@ impl<'a> ParseContext<'a> {
             byte_index: 0,
             bit_offset: 0,
             flags: 0,
-            values: [None; 13],
+            values: [None; 14],
         }
     }
 
@@ -383,6 +386,7 @@ const PARSER_DATA_LO: Parser = Parser::new(Identifier::DataLo, None, None, 8);
 const PARSER_DATA_HI: Parser = Parser::new(Identifier::DataHi, None, Some(FLAG_W16), 8);
 const PARSER_ADDR_LO: Parser = Parser::new(Identifier::AddrLo, None, None, 8);
 const PARSER_ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, None, 8); 
+const PARSER_SR: Parser = Parser::new(Identifier::Sr, None, None, 2); 
 
 const fn opcode(opcode: u8, size: usize) -> Parser {
     Parser::new(Identifier::Opcode, Some(opcode), None, size)
@@ -457,12 +461,29 @@ const MOV_ACC_MEM: Encoding = Encoding {
     parsers: &[opcode(0b1010001, 7), PARSER_W, PARSER_ADDR_LO, PARSER_ADDR_HI],
 };
 
+const SEG_TO_REGMEM: Encoding = Encoding {
+    form: OperandForm::RegMemToSeg,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[opcode(0b10001110, 8), PARSER_MOD, literal(0b0, 1), PARSER_SR, PARSER_RM, PARSER_DISPLO, PARSER_DISPHI],
+};
+
+const REGMEM_TO_SEG: Encoding = Encoding {
+    form: OperandForm::SegToRegMem,
+    mnemonic: InstructionMnemonic::Mov,
+    parsers: &[opcode(0b10001100, 8), PARSER_MOD, literal(0b0, 1), PARSER_SR, PARSER_RM, PARSER_DISPLO, PARSER_DISPHI],
+};
+
+
+
+
 const INSTRUCTION_TABLE: &[Encoding] = &[
     MOV_REG_MEM,
     MOV_IMM_REGMEM,
     MOV_REG_IMM,
     MOV_MEM_ACC,
     MOV_ACC_MEM,
+    SEG_TO_REGMEM,
+    REGMEM_TO_SEG,
 ];
 
 // --------------------------------------------------------------------------------
@@ -533,7 +554,6 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
             let region = Region { address, size: 1 + w as usize };
             Operands::new(None, Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
         },
-
         OperandForm::MemToAcc => {
             let address = combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16 as usize;
             let w = context[Identifier::W].unwrap();
@@ -541,6 +561,30 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
             let region = Region { address, size: 1 + w as usize };
             Operands::new(None, Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
         },
+
+        OperandForm::SegToRegMem => {
+            let seg_op = seg_field_encoding(context);
+            let rm_op = rm_field_encoding(context);
+            Operands::new(None, Some(rm_op), Some(seg_op))
+        },
+        OperandForm::RegMemToSeg => {
+            let seg_op = seg_field_encoding(context);
+            let rm_op = rm_field_encoding(context);
+            Operands::new(None, Some(seg_op), Some(rm_op))
+        },
+
+
+    }
+}
+
+// Table 4-11; Row SR
+fn seg_field_encoding(context: &ParseContext) -> Operand {
+    match context[Identifier::Sr].unwrap() {
+        0b00 => Operand::Register(Register::ES),
+        0b01 => Operand::Register(Register::CS),
+        0b10 => Operand::Register(Register::SS),
+        0b11 => Operand::Register(Register::DS),
+        _ => unreachable!(),
     }
 }
 
@@ -548,7 +592,7 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
 fn rm_field_encoding(context: &ParseContext) -> Operand {
     let mod_val = context[Identifier::Mod].unwrap();
     let rm = context[Identifier::Rm].unwrap();
-    let w = context[Identifier::W].unwrap();
+    let w = context[Identifier::W].unwrap_or(1);
     let disp_lo = context[Identifier::DispLo];
     let disp_hi = context[Identifier::DispHi];
     let displacement = match mod_val {
