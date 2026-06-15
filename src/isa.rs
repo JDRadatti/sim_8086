@@ -120,8 +120,8 @@ pub const REG_ENCODING: [Register; 16] = [
 pub enum Operand {
     Register(Register),
     DirectAddress(Region),
-    EffectiveAddress(Register, i16),
-    EffectiveAddress2(Register, Register, i16),
+    EffectiveAddress(Register, i16, usize),
+    EffectiveAddress2(Register, Register, i16, usize),
     Immediate(u16),
 }
 
@@ -130,12 +130,12 @@ impl fmt::Display for Operand {
         match self {
             Operand::Register(register) => write!(f, "{register}"),
             Operand::DirectAddress(region) => write!(f, "[{}]", region.address),
-            Operand::EffectiveAddress(register1, displacement) => match displacement.cmp(&0) {
+            Operand::EffectiveAddress(register1, displacement, _) => match displacement.cmp(&0) {
                 Ordering::Less => write!(f, "[{register1} - {}]", displacement.unsigned_abs()),
                 Ordering::Greater => write!(f, "[{register1} + {displacement}]"),
                 Ordering::Equal => write!(f, "[{register1}]"),
             },
-            Operand::EffectiveAddress2(register1, register2, displacement) => {
+            Operand::EffectiveAddress2(register1, register2, displacement, _) => {
                 match displacement.cmp(&0) {
                     Ordering::Less => write!(
                         f,
@@ -151,30 +151,36 @@ impl fmt::Display for Operand {
     }
 }
 
-struct Operands {
-    size: Option<bool>, 
-    op1: Option<Operand>, 
-    op2: Option<Operand>
+impl Operand {
+    fn size(&self) -> Option<usize> {
+        match self {
+            Operand::DirectAddress(region) => Some(region.size),
+            Operand::EffectiveAddress(_, _, size) => Some(*size),
+            Operand::EffectiveAddress2(_, _, _, size) => Some(*size),
+            _ => None,
+        }
+    }
+}
+
+pub struct Operands {
+    pub op1: Option<Operand>,
+    pub op2: Option<Operand>,
 }
 
 impl Operands {
-    fn new(w: Option<u8>, op1: Option<Operand>, op2: Option<Operand>) -> Self {
-        let op1_is_register = op1.is_some() && matches!(op1.as_ref().unwrap(), Operand::Register(_));
-        let op2_is_register = op2.is_some() && matches!(op2.as_ref().unwrap(), Operand::Register(_));
-        let size = if w.is_some() && !(op1_is_register || op2_is_register) {
-            Some(w.unwrap() == 1)
-        } else {
-            None
-        };
-        Self { size, op1, op2 }
+    fn new(op1: Option<Operand>, op2: Option<Operand>) -> Self {
+        Self { op1, op2 }
     }
 }
 
 impl fmt::Display for Operands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(word) = self.size {
-            let size = if word { "word" } else { "byte" };
-            write!(f, "{size} ")?;
+        let has_register = self.op1.as_ref().map_or(false, |op| matches!(op, Operand::Register(_)))
+            || self.op2.as_ref().map_or(false, |op| matches!(op, Operand::Register(_)));
+        if !has_register {
+            let size = self.op1.as_ref().and_then(|op| op.size()).unwrap_or(1);
+            let size_str = if size == 2 { "word" } else { "byte" };
+            write!(f, "{size_str} ")?;
         }
         if let Some(op1) = &self.op1 {
             write!(f, "{op1}")?;
@@ -211,7 +217,7 @@ impl fmt::Display for InstructionMnemonic {
 
 pub struct Instruction {
     pub mnemonic: InstructionMnemonic,
-    operands: Operands,
+    pub operands: Operands,
 }
 
 impl fmt::Display for Instruction {
@@ -530,22 +536,22 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
             let rm_op = rm_field_encoding(context);
 
             if d == 1 {
-                Operands::new(None, Some(reg_op), Some(rm_op))
+                Operands::new(Some(reg_op), Some(rm_op))
             } else {
-                Operands::new(None, Some(rm_op), Some(reg_op))
+                Operands::new(Some(rm_op), Some(reg_op))
             }
         }
 
         OperandForm::ImmToRegMem => {
             let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
             let rm_op = rm_field_encoding(context);
-            Operands::new(context[Identifier::W], Some(rm_op), Some(Operand::Immediate(imm)))
+            Operands::new(Some(rm_op), Some(Operand::Immediate(imm)))
         }
 
         OperandForm::RegImm => {
             let reg = reg_register(&context);
             let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
-            Operands::new(None, Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
+            Operands::new(Some(Operand::Register(reg)), Some(Operand::Immediate(imm)))
         }
 
         OperandForm::AccToMem => {
@@ -553,25 +559,25 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let region = Region { address, size: 1 + w as usize };
-            Operands::new(None, Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
+            Operands::new(Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
         },
         OperandForm::MemToAcc => {
             let address = combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16 as usize;
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let region = Region { address, size: 1 + w as usize };
-            Operands::new(None, Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
+            Operands::new(Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
         },
 
         OperandForm::SegToRegMem => {
             let seg_op = seg_field_encoding(context);
             let rm_op = rm_field_encoding(context);
-            Operands::new(None, Some(rm_op), Some(seg_op))
+            Operands::new(Some(rm_op), Some(seg_op))
         },
         OperandForm::RegMemToSeg => {
             let seg_op = seg_field_encoding(context);
             let rm_op = rm_field_encoding(context);
-            Operands::new(None, Some(seg_op), Some(rm_op))
+            Operands::new(Some(seg_op), Some(rm_op))
         },
 
 
@@ -609,14 +615,14 @@ fn rm_field_encoding(context: &ParseContext) -> Operand {
             size: 1 + w as usize,
         }),
 
-        (_, 0b000) => Operand::EffectiveAddress2(Register::BX, Register::SI, displacement),
-        (_, 0b001) => Operand::EffectiveAddress2(Register::BX, Register::DI, displacement),
-        (_, 0b010) => Operand::EffectiveAddress2(Register::BP, Register::SI, displacement),
-        (_, 0b011) => Operand::EffectiveAddress2(Register::BP, Register::DI, displacement),
-        (_, 0b100) => Operand::EffectiveAddress(Register::SI, displacement),
-        (_, 0b101) => Operand::EffectiveAddress(Register::DI, displacement),
-        (_, 0b110) => Operand::EffectiveAddress(Register::BP, displacement),
-        (_, 0b111) => Operand::EffectiveAddress(Register::BX, displacement),
+        (_, 0b000) => Operand::EffectiveAddress2(Register::BX, Register::SI, displacement, 1 + w as usize),
+        (_, 0b001) => Operand::EffectiveAddress2(Register::BX, Register::DI, displacement, 1 + w as usize),
+        (_, 0b010) => Operand::EffectiveAddress2(Register::BP, Register::SI, displacement, 1 + w as usize),
+        (_, 0b011) => Operand::EffectiveAddress2(Register::BP, Register::DI, displacement, 1 + w as usize),
+        (_, 0b100) => Operand::EffectiveAddress(Register::SI, displacement, 1 + w as usize),
+        (_, 0b101) => Operand::EffectiveAddress(Register::DI, displacement, 1 + w as usize),
+        (_, 0b110) => Operand::EffectiveAddress(Register::BP, displacement, 1 + w as usize),
+        (_, 0b111) => Operand::EffectiveAddress(Register::BX, displacement, 1 + w as usize),
 
         _ => todo!("effective address for rm={rm}, mod={mod_val}"),
     }
