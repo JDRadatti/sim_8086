@@ -1,3 +1,5 @@
+use sim_8086::isa;
+
 #[macro_use]
 mod infra;
 
@@ -69,5 +71,71 @@ decode_tests! {
     {
         name: mov_zero_disp,
         file: "mov_zero_disp.s",
+    },
+}
+
+execute_tests! {
+    {
+        name: mov_imm8_exec,
+        file: "mov_imm8_exec.s",
+        steps: 1,
+        expected: { AL == 0x42 },
+        mem: {},
+    },
+    {
+        name: mov_imm16_exec,
+        file: "mov_imm16_exec.s",
+        steps: 1,
+        expected: { AX == 0x1234 },
+        mem: {},
+    },
+    {
+        name: mov_reg_reg8_exec,
+        file: "mov_reg_reg8_exec.s",
+        steps: 2,
+        expected: { AL == 0x07, BL == 0x07 },
+        mem: {},
+    },
+    {
+        name: mov_reg_reg16_exec,
+        file: "mov_reg_reg16_exec.s",
+        steps: 2,
+        expected: { AX == 0x5678, BX == 0x5678 },
+        mem: {},
+    },
+    {
+        name: mov_acc_to_mem_exec,
+        file: "mov_acc_to_mem_exec.s",
+        steps: 2,
+        expected: { AX == 0x1234 },
+        mem: { (0x0100, [0x34, 0x12]) },
+    },
+    {
+        name: mov_mem_to_acc_exec,
+        file: "mov_mem_to_acc_exec.s",
+        steps: 3,
+        expected: { AX == 0x1234, BX == 0x1234 },
+        mem: { (0x0100, [0x34, 0x12]) },
+    },
+    {
+        name: mov_imm_to_mem_exec,
+        file: "mov_imm_to_mem_exec.s",
+        steps: 1,
+        expected: {},
+        mem: { (0x0100, [0x34, 0x12]) },
+    },
+    {
+        name: mov_reg_to_mem_exec,
+        file: "mov_reg_to_mem_exec.s",
+        steps: 3,
+        expected: { AX == 0x1234, BX == 0x0100 },
+        mem: { (0x0100, [0x34, 0x12]) },
+    },
+    {
+        name: mov_mem_disp_exec,
+        file: "mov_mem_disp_exec.s",
+        steps: 4,
+        expected: { AX == 0x1234 },
+        mem: { (0x0102, [0x34, 0x12]) },
     },
 }

@@ -1,3 +1,4 @@
+use sim_8086::{cpu, isa};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -12,6 +13,32 @@ macro_rules! decode_tests {
             #[test]
             fn $name() {
                 $crate::infra::run_decode_test(stringify!($name), $file);
+            }
+        )*
+    };
+}
+
+macro_rules! execute_tests {
+    ($(
+        {
+            name: $name:ident,
+            file: $file:literal,
+            steps: $steps:literal,
+            expected: { $( $reg:ident == $val:literal ),* $(,)? }
+            , mem: { $( ( $addr:literal, [$( $byte:literal ),* $(,)?] ) ),* $(,)? }
+            $(,)?
+        }
+    ),* $(,)?) => {
+        $(
+            #[test]
+            fn $name() {
+                $crate::infra::run_execute_test(
+                    stringify!($name),
+                    $file,
+                    $steps,
+                    &[$((isa::Register::$reg, $val)),*],
+                    &[$(( $addr, &[$($byte),*] )),*],
+                );
             }
         )*
     };
@@ -38,6 +65,37 @@ pub(crate) fn run_decode_test(name: &str, file: &str) {
     let ref_bytes = std::fs::read(&ref_bin).expect("could not read reference binary");
     let dec_bytes = std::fs::read(&dec_bin).expect("could not read decoded binary");
     assert_eq!(ref_bytes, dec_bytes, "mismatch for test '{name}'");
+}
+
+pub(crate) fn run_execute_test(
+    name: &str,
+    file: &str,
+    steps: usize,
+    reg_checks: &[(isa::Register, u16)],
+    mem_checks: &[(usize, &[u8])],
+) {
+    let src = Path::new("tests").join(file);
+    let bin = Path::new("tests").join(format!("{name}_exec.bin"));
+
+    nasm_compile(&src, &bin);
+
+    let program = std::fs::read(&bin).expect("could not read binary");
+    let mut cpu = cpu::Cpu::new();
+    cpu.load_program(&program, 0x0000);
+
+    for _ in 0..steps {
+        cpu.step_execute().expect("execution step failed");
+    }
+
+    for (reg, expected) in reg_checks {
+        let actual = cpu.read_register(*reg);
+        assert_eq!(actual, *expected, "{reg:?} mismatch in '{name}'");
+    }
+
+    for (address, expected_bytes) in mem_checks {
+        let actual = cpu.read_memory(*address, expected_bytes.len());
+        assert_eq!(actual, *expected_bytes, "mem[{address:#06x}] mismatch in '{name}'");
+    }
 }
 
 fn nasm_compile(input: &Path, output: &Path) {
