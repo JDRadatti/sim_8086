@@ -1,4 +1,4 @@
-use crate::memory::{ REGISTER_BASE, Region, };
+use crate::memory::{REGISTER_BASE, Region};
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Index, IndexMut};
@@ -175,8 +175,14 @@ impl Operands {
 
 impl fmt::Display for Operands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let has_register = self.op1.as_ref().map_or(false, |op| matches!(op, Operand::Register(_)))
-            || self.op2.as_ref().map_or(false, |op| matches!(op, Operand::Register(_)));
+        let has_register = self
+            .op1
+            .as_ref()
+            .map_or(false, |op| matches!(op, Operand::Register(_)))
+            || self
+                .op2
+                .as_ref()
+                .map_or(false, |op| matches!(op, Operand::Register(_)));
         if !has_register {
             let size = self.op1.as_ref().and_then(|op| op.size()).unwrap_or(1);
             let size_str = if size == 2 { "word" } else { "byte" };
@@ -459,29 +465,96 @@ const MOV_REG_IMM: Encoding = Encoding {
 const MOV_MEM_ACC: Encoding = Encoding {
     form: OperandForm::MemToAcc,
     mnemonic: InstructionMnemonic::Mov,
-    parsers: &[opcode(0b1010000, 7), PARSER_W, PARSER_ADDR_LO, PARSER_ADDR_HI],
+    parsers: &[
+        opcode(0b1010000, 7),
+        PARSER_W,
+        PARSER_ADDR_LO,
+        PARSER_ADDR_HI,
+    ],
 };
 
 const MOV_ACC_MEM: Encoding = Encoding {
     form: OperandForm::AccToMem,
     mnemonic: InstructionMnemonic::Mov,
-    parsers: &[opcode(0b1010001, 7), PARSER_W, PARSER_ADDR_LO, PARSER_ADDR_HI],
+    parsers: &[
+        opcode(0b1010001, 7),
+        PARSER_W,
+        PARSER_ADDR_LO,
+        PARSER_ADDR_HI,
+    ],
 };
 
 const SEG_TO_REGMEM: Encoding = Encoding {
     form: OperandForm::RegMemToSeg,
     mnemonic: InstructionMnemonic::Mov,
-    parsers: &[opcode(0b10001110, 8), PARSER_MOD, literal(0b0, 1), PARSER_SR, PARSER_RM, PARSER_DISPLO, PARSER_DISPHI],
+    parsers: &[
+        opcode(0b10001110, 8),
+        PARSER_MOD,
+        literal(0b0, 1),
+        PARSER_SR,
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
 };
 
 const REGMEM_TO_SEG: Encoding = Encoding {
     form: OperandForm::SegToRegMem,
     mnemonic: InstructionMnemonic::Mov,
-    parsers: &[opcode(0b10001100, 8), PARSER_MOD, literal(0b0, 1), PARSER_SR, PARSER_RM, PARSER_DISPLO, PARSER_DISPHI],
+    parsers: &[
+        opcode(0b10001100, 8),
+        PARSER_MOD,
+        literal(0b0, 1),
+        PARSER_SR,
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
 };
 
+// ADD Instructions
 
+const ADD_REGMEM_WREG: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Add,
+    parsers: &[
+        opcode(0b000000, 6),
+        PARSER_D,
+        PARSER_W,
+        PARSER_MOD,
+        PARSER_REG,
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
+};
 
+const ADD_IMM_REGMEM: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Add,
+    parsers: &[
+        opcode(0b100000, 6),
+        PARSER_S,
+        PARSER_W,
+        PARSER_MOD,
+        literal(0b000, 3),
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+        PARSER_DATA_LO,
+        PARSER_DATA_HI,
+    ],
+};
+
+const ADD_IMM_ACC: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Add,
+    parsers: &[
+        opcode(0b0000010, 6),
+        PARSER_W,
+        PARSER_DATA_LO,
+        PARSER_DATA_HI,
+    ],
+};
 
 const INSTRUCTION_TABLE: &[Encoding] = &[
     MOV_REG_MEM,
@@ -528,7 +601,7 @@ fn try_decode(encoding: &Encoding, bytes: &[u8]) -> Option<(Instruction, usize)>
     Some((instruction, context.byte_index))
 }
 
-fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
+fn decode_operands(context: &ParseContext, form: &OperandForm) -> Operands {
     match form {
         OperandForm::RegMemToFromReg => {
             let d = context[Identifier::D].unwrap();
@@ -555,32 +628,46 @@ fn decode_operands(context: &ParseContext, form: &OperandForm,) -> Operands {
         }
 
         OperandForm::AccToMem => {
-            let address = combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16 as usize;
+            let address =
+                combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16
+                    as usize;
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
-            let region = Region { address, size: 1 + w as usize };
-            Operands::new(Some(Operand::DirectAddress(region)), Some(Operand::Register(acc)))
-        },
+            let region = Region {
+                address,
+                size: 1 + w as usize,
+            };
+            Operands::new(
+                Some(Operand::DirectAddress(region)),
+                Some(Operand::Register(acc)),
+            )
+        }
         OperandForm::MemToAcc => {
-            let address = combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16 as usize;
+            let address =
+                combine_bytes_u16(context[Identifier::AddrLo], context[Identifier::AddrHi]) as u16
+                    as usize;
             let w = context[Identifier::W].unwrap();
             let acc = if w == 0 { Register::AL } else { Register::AX };
-            let region = Region { address, size: 1 + w as usize };
-            Operands::new(Some(Operand::Register(acc)), Some(Operand::DirectAddress(region)))
-        },
+            let region = Region {
+                address,
+                size: 1 + w as usize,
+            };
+            Operands::new(
+                Some(Operand::Register(acc)),
+                Some(Operand::DirectAddress(region)),
+            )
+        }
 
         OperandForm::SegToRegMem => {
             let seg_op = seg_field_encoding(context);
             let rm_op = rm_field_encoding(context);
             Operands::new(Some(rm_op), Some(seg_op))
-        },
+        }
         OperandForm::RegMemToSeg => {
             let seg_op = seg_field_encoding(context);
             let rm_op = rm_field_encoding(context);
             Operands::new(Some(seg_op), Some(rm_op))
-        },
-
-
+        }
     }
 }
 
@@ -615,10 +702,18 @@ fn rm_field_encoding(context: &ParseContext) -> Operand {
             size: 1 + w as usize,
         }),
 
-        (_, 0b000) => Operand::EffectiveAddress2(Register::BX, Register::SI, displacement, 1 + w as usize),
-        (_, 0b001) => Operand::EffectiveAddress2(Register::BX, Register::DI, displacement, 1 + w as usize),
-        (_, 0b010) => Operand::EffectiveAddress2(Register::BP, Register::SI, displacement, 1 + w as usize),
-        (_, 0b011) => Operand::EffectiveAddress2(Register::BP, Register::DI, displacement, 1 + w as usize),
+        (_, 0b000) => {
+            Operand::EffectiveAddress2(Register::BX, Register::SI, displacement, 1 + w as usize)
+        }
+        (_, 0b001) => {
+            Operand::EffectiveAddress2(Register::BX, Register::DI, displacement, 1 + w as usize)
+        }
+        (_, 0b010) => {
+            Operand::EffectiveAddress2(Register::BP, Register::SI, displacement, 1 + w as usize)
+        }
+        (_, 0b011) => {
+            Operand::EffectiveAddress2(Register::BP, Register::DI, displacement, 1 + w as usize)
+        }
         (_, 0b100) => Operand::EffectiveAddress(Register::SI, displacement, 1 + w as usize),
         (_, 0b101) => Operand::EffectiveAddress(Register::DI, displacement, 1 + w as usize),
         (_, 0b110) => Operand::EffectiveAddress(Register::BP, displacement, 1 + w as usize),
