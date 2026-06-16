@@ -1,0 +1,3 @@
+BITS 16
+mov ax, 0x0003
+add ax, 0x0001
