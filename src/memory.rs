@@ -62,15 +62,10 @@ impl Bus {
         self.write(&value.to_le_bytes()[..region.size], region)
     }
 
-    pub fn memcopy(
-        &mut self,
-        source: &Region,
-        destination: &Region,
-    ) -> Result<(), MemoryError> {
+    pub fn memcopy(&mut self, source: &Region, destination: &Region) -> Result<(), MemoryError> {
         let data = self.read(source)?.to_vec();
         self.write(&data, destination)
     }
-
 }
 
 impl Memory {
@@ -570,10 +565,7 @@ mod bus_tests {
             address: REGISTER_BASE + 26,
             size: 4,
         };
-        assert_eq!(
-            bus.read(&bad_region),
-            Err(MemoryError::SegmentationFault)
-        );
+        assert_eq!(bus.read(&bad_region), Err(MemoryError::SegmentationFault));
         assert_eq!(
             bus.write(&[0, 0, 0, 0], &bad_region),
             Err(MemoryError::SegmentationFault)
