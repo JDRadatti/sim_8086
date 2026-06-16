@@ -687,6 +687,7 @@ fn rm_field_encoding(context: &ParseContext) -> Operand {
     let mod_val = context[Identifier::Mod].unwrap();
     let rm = context[Identifier::Rm].unwrap();
     let w = context[Identifier::W].unwrap_or(1);
+    let size = 1 + w as usize;
     let disp_lo = context[Identifier::DispLo];
     let disp_hi = context[Identifier::DispHi];
     let displacement = match mod_val {
@@ -699,25 +700,17 @@ fn rm_field_encoding(context: &ParseContext) -> Operand {
 
         (0b00, 0b110) => Operand::DirectAddress(Region {
             address: combine_bytes_i16(disp_lo, disp_hi) as usize,
-            size: 1 + w as usize,
+            size: size,
         }),
 
-        (_, 0b000) => {
-            Operand::EffectiveAddress2(Register::BX, Register::SI, displacement, 1 + w as usize)
-        }
-        (_, 0b001) => {
-            Operand::EffectiveAddress2(Register::BX, Register::DI, displacement, 1 + w as usize)
-        }
-        (_, 0b010) => {
-            Operand::EffectiveAddress2(Register::BP, Register::SI, displacement, 1 + w as usize)
-        }
-        (_, 0b011) => {
-            Operand::EffectiveAddress2(Register::BP, Register::DI, displacement, 1 + w as usize)
-        }
-        (_, 0b100) => Operand::EffectiveAddress(Register::SI, displacement, 1 + w as usize),
-        (_, 0b101) => Operand::EffectiveAddress(Register::DI, displacement, 1 + w as usize),
-        (_, 0b110) => Operand::EffectiveAddress(Register::BP, displacement, 1 + w as usize),
-        (_, 0b111) => Operand::EffectiveAddress(Register::BX, displacement, 1 + w as usize),
+        (_, 0b000) => Operand::EffectiveAddress2(Register::BX, Register::SI, displacement, size),
+        (_, 0b001) => Operand::EffectiveAddress2(Register::BX, Register::DI, displacement, size),
+        (_, 0b010) => Operand::EffectiveAddress2(Register::BP, Register::SI, displacement, size),
+        (_, 0b011) => Operand::EffectiveAddress2(Register::BP, Register::DI, displacement, size),
+        (_, 0b100) => Operand::EffectiveAddress(Register::SI, displacement, size),
+        (_, 0b101) => Operand::EffectiveAddress(Register::DI, displacement, size),
+        (_, 0b110) => Operand::EffectiveAddress(Register::BP, displacement, size),
+        (_, 0b111) => Operand::EffectiveAddress(Register::BX, displacement, size),
 
         _ => todo!("effective address for rm={rm}, mod={mod_val}"),
     }
