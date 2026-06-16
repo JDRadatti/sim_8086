@@ -62,7 +62,10 @@ impl Cpu {
     }
 
     pub fn step(&mut self) -> Result<isa::Instruction, CpuError> {
-        let ip = self.bus.read_u16(&isa::Register::IP.region()).expect("register read failed");
+        let ip = self
+            .bus
+            .read_u16(&isa::Register::IP.region())
+            .expect("register read failed");
         let buf = self.fetch_instruction_buffer()?;
         let (instruction, consumed) = isa::decode(buf).ok_or(CpuError::InvalidOpcode(ip))?;
 
@@ -92,18 +95,20 @@ impl Cpu {
     }
 
     pub fn read_register(&self, reg: isa::Register) -> u16 {
-        self.bus.read_u16(&reg.region()).expect("register read failed")
+        self.bus
+            .read_u16(&reg.region())
+            .expect("register read failed")
     }
 
     pub fn read_memory(&self, address: usize, size: usize) -> &[u8] {
-        self.bus.read(&Region { address, size }).expect("memory read failed")
+        self.bus
+            .read(&Region { address, size })
+            .expect("memory read failed")
     }
 
     fn read_operand(&self, operand: &isa::Operand) -> Result<u16, CpuError> {
         match operand {
-            isa::Operand::Register(reg) => {
-                self.bus.read_u16(&reg.region()).map_err(CpuError::from)
-            }
+            isa::Operand::Register(reg) => self.bus.read_u16(&reg.region()).map_err(CpuError::from),
             isa::Operand::Immediate(val) => Ok(*val),
             _ => {
                 let region = self.operand_region(operand).unwrap();
@@ -114,9 +119,10 @@ impl Cpu {
 
     fn write_operand(&mut self, operand: &isa::Operand, value: u16) -> Result<(), CpuError> {
         match operand {
-            isa::Operand::Register(reg) => {
-                self.bus.write_u16(value, &reg.region()).map_err(CpuError::from)
-            }
+            isa::Operand::Register(reg) => self
+                .bus
+                .write_u16(value, &reg.region())
+                .map_err(CpuError::from),
             isa::Operand::Immediate(_) => {
                 panic!("cannot write to immediate operand");
             }
@@ -131,19 +137,28 @@ impl Cpu {
         match operand {
             isa::Operand::DirectAddress(region) => {
                 let linear = self.compute_linear_address(region.address as u16, isa::Register::DS);
-                Some(Region { address: linear, size: region.size })
+                Some(Region {
+                    address: linear,
+                    size: region.size,
+                })
             }
             isa::Operand::EffectiveAddress(base_reg, displacement, size) => {
                 let offset = self.effective_address_offset(*base_reg, *displacement);
                 let segment = self.effective_address_segment(*base_reg);
                 let linear = self.compute_linear_address(offset, segment);
-                Some(Region { address: linear, size: *size })
+                Some(Region {
+                    address: linear,
+                    size: *size,
+                })
             }
             isa::Operand::EffectiveAddress2(reg1, reg2, displacement, size) => {
                 let offset = self.effective_address_offset2(*reg1, *reg2, *displacement);
                 let segment = self.effective_address_segment2(*reg1, *reg2);
                 let linear = self.compute_linear_address(offset, segment);
-                Some(Region { address: linear, size: *size })
+                Some(Region {
+                    address: linear,
+                    size: *size,
+                })
             }
             _ => None,
         }
@@ -154,7 +169,12 @@ impl Cpu {
         ((base_val as i32) + (displacement as i32)) as u16
     }
 
-    fn effective_address_offset2(&self, reg1: isa::Register, reg2: isa::Register, displacement: i16) -> u16 {
+    fn effective_address_offset2(
+        &self,
+        reg1: isa::Register,
+        reg2: isa::Register,
+        displacement: i16,
+    ) -> u16 {
         let val1 = self.bus.read_u16(&reg1.region()).unwrap();
         let val2 = self.bus.read_u16(&reg2.region()).unwrap();
         ((val1 as i32) + (val2 as i32) + (displacement as i32)) as u16
@@ -168,7 +188,11 @@ impl Cpu {
         }
     }
 
-    fn effective_address_segment2(&self, reg1: isa::Register, reg2: isa::Register) -> isa::Register {
+    fn effective_address_segment2(
+        &self,
+        reg1: isa::Register,
+        reg2: isa::Register,
+    ) -> isa::Register {
         if matches!(reg1, isa::Register::BP) || matches!(reg2, isa::Register::BP) {
             isa::Register::SS
         } else {
@@ -182,10 +206,18 @@ impl Cpu {
     }
 
     fn fetch_instruction_buffer(&self) -> Result<&[u8], CpuError> {
-        let ip = self.bus.read_u16(&isa::Register::IP.region()).expect("register read failed");
-        let cs = self.bus.read_u16(&isa::Register::CS.region()).expect("register read failed");
+        let ip = self
+            .bus
+            .read_u16(&isa::Register::IP.region())
+            .expect("register read failed");
+        let cs = self
+            .bus
+            .read_u16(&isa::Register::CS.region())
+            .expect("register read failed");
         let address = ((cs as usize) << 4) + (ip as usize);
-        self.bus.read(&Region { address, size: 6 }).map_err(CpuError::from)
+        self.bus
+            .read(&Region { address, size: 6 })
+            .map_err(CpuError::from)
     }
 
     pub fn load_program(&mut self, bytes: &[u8], segment: u16) {
@@ -215,5 +247,4 @@ impl Cpu {
             .write_u16(segment, &isa::Register::DS.region())
             .expect("register write failed");
     }
-
 }
