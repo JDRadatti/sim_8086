@@ -27,6 +27,11 @@ impl Bus {
         }
     }
 
+    //
+    // Write/Read
+    //
+
+
     pub fn read(&self, region: &Region) -> Result<&[u8], MemoryError> {
         if region.address >= REGISTER_BASE {
             let local = Region {
@@ -65,6 +70,36 @@ impl Bus {
     pub fn memcopy(&mut self, source: &Region, destination: &Region) -> Result<(), MemoryError> {
         let data = self.read(source)?.to_vec();
         self.write(&data, destination)
+    }
+
+    //
+    // Bitwise operations
+    //
+
+    pub fn or_u16(&mut self, value: u16, region: &Region) -> Result<(), MemoryError> {
+        let data = self.read_u16(region)?;
+        self.write_u16(data | value, region)
+    }
+
+    pub fn nor_u16(&mut self, value: u16, region: &Region) -> Result<(), MemoryError> {
+        let data = self.read_u16(region)?;
+        self.write_u16(!(data | value), region)
+    }
+
+
+    pub fn xor_u16(&mut self, value: u16, region: &Region) -> Result<(), MemoryError> {
+        let data = self.read_u16(region)?;
+        self.write_u16(data ^ value, region)
+    }
+
+    pub fn and_u16(&mut self, value: u16, region: &Region) -> Result<(), MemoryError> {
+        let data = self.read_u16(region)?;
+        self.write_u16(data & value, region)
+    }
+
+    pub fn complement_u16(&mut self, region: &Region) -> Result<(), MemoryError> {
+        let data = self.read_u16(region)?;
+        self.write_u16(!data, region)
     }
 }
 
