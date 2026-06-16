@@ -30,6 +30,21 @@ impl From<MemoryError> for CpuError {
 }
 
 // --------------------------------------------------------------------------------
+// FLAGS
+// --------------------------------------------------------------------------------
+
+type CpuFlag = u16;
+const FLAG_CF: CpuFlag = 0b1;
+const FLAG_PF: CpuFlag = 0b100;
+const FLAG_AF: CpuFlag = 0b10000;
+const FLAG_ZF: CpuFlag = 0b1000000;
+const FLAG_SF: CpuFlag = 0b10000000;
+const FLAG_TF: CpuFlag = 0b100000000;
+const FLAG_IF: CpuFlag = 0b1000000000;
+const FLAG_DF: CpuFlag = 0b10000000000;
+const FLAG_OF: CpuFlag = 0b100000000000;
+
+// --------------------------------------------------------------------------------
 // CPU
 // --------------------------------------------------------------------------------
 
@@ -92,15 +107,24 @@ impl Cpu {
             isa::InstructionMnemonic::Add => {
                 let src = instruction.operands.op2.as_ref().unwrap();
                 let dst = instruction.operands.op1.as_ref().unwrap();
-                let src_val = self.read_operand(src)?;
-                let dst_val = self.read_operand(dst)?;
-                let result = dst_val.wrapping_add(src_val);
+                let is_word = self.operand_is_word(dst);
+                let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
+                let src_val = self.read_operand(src)? & mask;
+                let dst_val = self.read_operand(dst)? & mask;
+                let (raw_result, word_overflow) = dst_val.overflowing_add(src_val);
+                let carry = if is_word { word_overflow } else { raw_result > mask };
+                let result = raw_result & mask;
                 self.write_operand(dst, result)?;
+                self.set_arithmetic_flags(result, src_val, dst_val, carry, is_word);
             }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())
     }
+
+    //
+    // Read/Write helpers
+    //
 
     pub fn read_register(&self, reg: isa::Register) -> u16 {
         self.bus
@@ -141,6 +165,10 @@ impl Cpu {
         }
     }
 
+    //
+    // Operand resolution
+    //
+
     fn operand_region(&self, operand: &isa::Operand) -> Option<Region> {
         match operand {
             isa::Operand::DirectAddress(region) => {
@@ -171,6 +199,20 @@ impl Cpu {
             _ => None,
         }
     }
+
+    fn operand_is_word(&self, operand: &isa::Operand) -> bool {
+        match operand {
+            isa::Operand::Register(reg) => reg.region().size == 2,
+            isa::Operand::DirectAddress(region) => region.size == 2,
+            isa::Operand::EffectiveAddress(_, _, size) => *size == 2,
+            isa::Operand::EffectiveAddress2(_, _, _, size) => *size == 2,
+            isa::Operand::Immediate(_) => true,
+        }
+    }
+
+    //
+    // Address calculation
+    //
 
     fn effective_address_offset(&self, base: isa::Register, displacement: i16) -> u16 {
         let base_val = self.bus.read_u16(&base.region()).unwrap();
@@ -212,6 +254,11 @@ impl Cpu {
         let seg_val = self.bus.read_u16(&segment.region()).unwrap();
         ((seg_val as usize) << 4) + (offset as usize)
     }
+
+    //
+    // Load/Fetch instructions
+    //
+
 
     fn fetch_instruction_buffer(&self) -> Result<&[u8], CpuError> {
         let ip = self
@@ -255,4 +302,76 @@ impl Cpu {
             .write_u16(segment, &isa::Register::DS.region())
             .expect("register write failed");
     }
+
+    //
+    // Flag helpers
+    //
+
+    fn set_arithmetic_flags(&mut self, result: u16, src_val: u16, dst_val: u16, carry: bool, is_word: bool) {
+        let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
+        let sign_bit: u16 = if is_word { 0x8000 } else { 0x0080 };
+        let result = result & mask;
+
+        // CF: carry flag (unsigned overflow)
+        if carry {
+            self.set_flag(FLAG_CF);
+        } else {
+            self.clear_flag(FLAG_CF);
+        }
+
+        // ZF: zero flag
+        if result == 0 {
+            self.set_flag(FLAG_ZF);
+        } else {
+            self.clear_flag(FLAG_ZF);
+        }
+
+        // SF: sign flag
+        if result & sign_bit != 0 {
+            self.set_flag(FLAG_SF);
+        } else {
+            self.clear_flag(FLAG_SF);
+        }
+
+        // OF: overflow flag (signed overflow)
+        // Set when both inputs have the same sign but the result has a different sign
+        let src_sign = src_val & sign_bit != 0;
+        let dst_sign = dst_val & sign_bit != 0;
+        let res_sign = result & sign_bit != 0;
+        if src_sign == dst_sign && res_sign != src_sign {
+            self.set_flag(FLAG_OF);
+        } else {
+            self.clear_flag(FLAG_OF);
+        }
+
+        // PF: parity flag (set if low byte has even number of set bits)
+        let parity = (result as u8).count_ones() % 2 == 0;
+        if parity {
+            self.set_flag(FLAG_PF);
+        } else {
+            self.clear_flag(FLAG_PF);
+        }
+
+        // AF: auxiliary carry flag (carry from bit 3 to bit 4)
+        if (src_val ^ dst_val ^ result) & 0x10 != 0 {
+            self.set_flag(FLAG_AF);
+        } else {
+            self.clear_flag(FLAG_AF);
+        }
+    }
+
+    fn set_flag(&mut self, flag: CpuFlag) {
+        self.bus.or_u16(flag, &isa::Register::FLAGS.region()).expect("set flag failed");
+    }
+
+    fn clear_flag(&mut self, flag: CpuFlag) { 
+        self.bus.and_u16(!flag, &isa::Register::FLAGS.region()).expect("clear flag failed");
+    }
+
+    fn check_flag(&mut self, flag: CpuFlag) -> bool { 
+        let val = self.bus.read_u16(&isa::Register::FLAGS.region()).expect("read flag failed"); 
+        val & flag != 0
+    }
+
+
 }
