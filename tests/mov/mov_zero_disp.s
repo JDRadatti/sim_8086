@@ -5,3 +5,4 @@ mov dx, [bp+si]
 mov [bp+di], ax
 mov [si], bl
 mov bx, [di]
+hlt

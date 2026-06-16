@@ -1,2 +1,3 @@
 BITS 16
 mov word [0x0100], 0x1234
+hlt

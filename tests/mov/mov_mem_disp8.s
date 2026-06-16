@@ -7,3 +7,5 @@ mov [si+64], bl
 mov bx, [di+32]
 mov [bp+8], al
 mov dh, [bx+63]
+
+hlt

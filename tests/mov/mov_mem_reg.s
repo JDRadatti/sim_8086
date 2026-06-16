@@ -7,3 +7,5 @@ mov ax, [4369]
 mov cx, [8738]
 mov dl, [13107]
 mov bh, [17476]
+
+hlt

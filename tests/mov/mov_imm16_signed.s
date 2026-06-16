@@ -7,3 +7,5 @@ mov sp, -128
 mov bp, -32767
 mov si, -512
 mov di, -1024
+
+hlt

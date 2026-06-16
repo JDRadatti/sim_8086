@@ -199,6 +199,7 @@ impl fmt::Display for Operands {
 }
 
 pub enum OperandForm {
+    None,
     RegMemToFromReg,
     ImmToRegMem,
     RegImm,
@@ -211,12 +212,14 @@ pub enum OperandForm {
 #[derive(Copy, Clone)]
 pub enum InstructionMnemonic {
     Mov,
+    Hlt,
 }
 
 impl fmt::Display for InstructionMnemonic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InstructionMnemonic::Mov => write!(f, "mov"),
+            InstructionMnemonic::Hlt => write!(f, "hlt"),
         }
     }
 }
@@ -228,7 +231,10 @@ pub struct Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.mnemonic, self.operands)?;
+        write!(f, "{}", self.mnemonic)?;
+        if self.operands.op1.is_some() || self.operands.op2.is_some() {
+            write!(f, " {}", self.operands)?;
+        }
         Ok(())
     }
 }
@@ -398,8 +404,8 @@ const PARSER_DISPHI: Parser = Parser::new(Identifier::DispHi, None, Some(FLAG_DI
 const PARSER_DATA_LO: Parser = Parser::new(Identifier::DataLo, None, None, 8);
 const PARSER_DATA_HI: Parser = Parser::new(Identifier::DataHi, None, Some(FLAG_W16), 8);
 const PARSER_ADDR_LO: Parser = Parser::new(Identifier::AddrLo, None, None, 8);
-const PARSER_ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, None, 8); 
-const PARSER_SR: Parser = Parser::new(Identifier::Sr, None, None, 2); 
+const PARSER_ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, None, 8);
+const PARSER_SR: Parser = Parser::new(Identifier::Sr, None, None, 2);
 
 const fn opcode(opcode: u8, size: usize) -> Parser {
     Parser::new(Identifier::Opcode, Some(opcode), None, size)
@@ -418,6 +424,8 @@ struct Encoding {
     mnemonic: InstructionMnemonic,
     parsers: &'static [Parser],
 }
+
+// MOV Instructions
 
 const MOV_REG_MEM: Encoding = Encoding {
     form: OperandForm::RegMemToFromReg,
@@ -556,6 +564,14 @@ const ADD_IMM_ACC: Encoding = Encoding {
     ],
 };
 
+// HLT Instruction
+
+const HLT_INST: Encoding = Encoding {
+    form: OperandForm::None,
+    mnemonic: InstructionMnemonic::Hlt,
+    parsers: &[opcode(0b11110100, 8)],
+};
+
 const INSTRUCTION_TABLE: &[Encoding] = &[
     MOV_REG_MEM,
     MOV_IMM_REGMEM,
@@ -564,6 +580,7 @@ const INSTRUCTION_TABLE: &[Encoding] = &[
     MOV_ACC_MEM,
     SEG_TO_REGMEM,
     REGMEM_TO_SEG,
+    HLT_INST,
 ];
 
 // --------------------------------------------------------------------------------
@@ -603,6 +620,8 @@ fn try_decode(encoding: &Encoding, bytes: &[u8]) -> Option<(Instruction, usize)>
 
 fn decode_operands(context: &ParseContext, form: &OperandForm) -> Operands {
     match form {
+        OperandForm::None => Operands::new(None, None),
+
         OperandForm::RegMemToFromReg => {
             let d = context[Identifier::D].unwrap();
             let reg_op = Operand::Register(reg_register(context));

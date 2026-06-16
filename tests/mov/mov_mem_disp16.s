@@ -7,3 +7,5 @@ mov [si+16384], bl
 mov bx, [di+4096]
 mov [bp+2048], al
 mov dh, [bx+32767]
+
+hlt

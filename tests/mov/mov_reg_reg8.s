@@ -7,3 +7,5 @@ mov ah, bh
 mov ch, dh
 mov dh, ah
 mov bh, ch
+
+hlt

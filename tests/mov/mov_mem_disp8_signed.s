@@ -7,3 +7,5 @@ mov [si-33], bl
 mov bx, [di-17]
 mov [bp-85], al
 mov dh, [bx-127]
+
+hlt

@@ -7,3 +7,5 @@ mov sp, bp
 mov si, di
 mov bp, sp
 mov di, si
+
+hlt

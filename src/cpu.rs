@@ -46,7 +46,12 @@ impl Cpu {
         loop {
             let instruction = self.step()?;
             println!("{instruction}");
+
+            if matches!(instruction.mnemonic, isa::InstructionMnemonic::Hlt) {
+                break;
+            }
         }
+        Ok(())
     }
 
     pub fn run_execute(&mut self) -> Result<(), CpuError> {
@@ -81,6 +86,7 @@ impl Cpu {
                 let value = self.read_operand(src)?;
                 self.write_operand(dst, value)?;
             }
+            isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())
     }

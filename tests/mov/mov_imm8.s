@@ -7,3 +7,5 @@ mov ah, 255
 mov ch, 0
 mov dh, 17
 mov bh, 34
+
+hlt
