@@ -16,4 +16,4 @@ tests/%.bin: tests/%.s
 
 clean:
 	cargo clean
-	rm -f tests/*.bin tests/*_dec.s tests/*_ref.bin tests/*_dec.bin
+	find tests -type f \( -name '*.bin' -o -name '*_dec.s' -o -name '*_ref.*' \) -delete

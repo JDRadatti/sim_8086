@@ -44,11 +44,20 @@ macro_rules! execute_tests {
     };
 }
 
+fn out_dir(file: &str) -> std::path::PathBuf {
+    Path::new("tests")
+        .join(file)
+        .parent()
+        .unwrap()
+        .to_path_buf()
+}
+
 pub(crate) fn run_decode_test(name: &str, file: &str) {
     let src = Path::new("tests").join(file);
-    let ref_bin = Path::new("tests").join(format!("{name}_ref.bin"));
-    let dec_asm = Path::new("tests").join(format!("{name}_dec.s"));
-    let dec_bin = Path::new("tests").join(format!("{name}_dec.bin"));
+    let dir = out_dir(file);
+    let ref_bin = dir.join(format!("{name}_ref.bin"));
+    let dec_asm = dir.join(format!("{name}_dec.s"));
+    let dec_bin = dir.join(format!("{name}_dec.bin"));
 
     // Step 1: Assemble the source to get the reference binary
     nasm_compile(&src, &ref_bin);
@@ -75,7 +84,8 @@ pub(crate) fn run_execute_test(
     mem_checks: &[(usize, &[u8])],
 ) {
     let src = Path::new("tests").join(file);
-    let bin = Path::new("tests").join(format!("{name}_exec.bin"));
+    let dir = out_dir(file);
+    let bin = dir.join(format!("{name}.bin"));
 
     nasm_compile(&src, &bin);
 
@@ -94,7 +104,10 @@ pub(crate) fn run_execute_test(
 
     for (address, expected_bytes) in mem_checks {
         let actual = cpu.read_memory(*address, expected_bytes.len());
-        assert_eq!(actual, *expected_bytes, "mem[{address:#06x}] mismatch in '{name}'");
+        assert_eq!(
+            actual, *expected_bytes,
+            "mem[{address:#06x}] mismatch in '{name}'"
+        );
     }
 }
 
