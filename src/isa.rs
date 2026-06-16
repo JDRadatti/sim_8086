@@ -207,11 +207,13 @@ pub enum OperandForm {
     AccToMem,
     SegToRegMem,
     RegMemToSeg,
+    ImmToAcc,
 }
 
 #[derive(Copy, Clone)]
 pub enum InstructionMnemonic {
     Mov,
+    Add,
     Hlt,
 }
 
@@ -219,6 +221,7 @@ impl fmt::Display for InstructionMnemonic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InstructionMnemonic::Mov => write!(f, "mov"),
+            InstructionMnemonic::Add => write!(f, "add"),
             InstructionMnemonic::Hlt => write!(f, "hlt"),
         }
     }
@@ -257,6 +260,7 @@ enum Identifier {
     Mod,
     D,
     W,
+    S,
     Rm,
     DispLo,
     DispHi,
@@ -328,7 +332,7 @@ struct ParseContext<'a> {
     bytes: &'a [u8],
     byte_index: usize,
     bit_offset: usize,
-    values: [Option<u8>; 14], // Size MUST match number of variants of Identifier Enum
+    values: [Option<u8>; 15], // Size MUST match number of variants of Identifier Enum
     flags: u8,
 }
 
@@ -339,7 +343,7 @@ impl<'a> ParseContext<'a> {
             byte_index: 0,
             bit_offset: 0,
             flags: 0,
-            values: [None; 14],
+            values: [None; 15],
         }
     }
 
@@ -370,7 +374,7 @@ impl<'a> ParseContext<'a> {
             Some(0b00) if rm_val == Some(0b110) => self.set_flag(FLAG_DISP16),
             _ => {}
         }
-        if self[Identifier::W] == Some(1) {
+        if self[Identifier::W] == Some(1) && self[Identifier::S] != Some(1) {
             self.set_flag(FLAG_W16);
         }
     }
@@ -395,6 +399,7 @@ impl IndexMut<Identifier> for ParseContext<'_> {
 
 const PARSER_D: Parser = Parser::new(Identifier::D, None, None, 1);
 const PARSER_W: Parser = Parser::new(Identifier::W, None, None, 1);
+const PARSER_S: Parser = Parser::new(Identifier::S, None, None, 1);
 const PARSER_MOD: Parser = Parser::new(Identifier::Mod, None, None, 2);
 const PARSER_REG: Parser = Parser::new(Identifier::Reg, None, None, 3);
 const PARSER_RM: Parser = Parser::new(Identifier::Rm, None, None, 3);
@@ -522,7 +527,7 @@ const REGMEM_TO_SEG: Encoding = Encoding {
 
 // ADD Instructions
 
-const ADD_REGMEM_WREG: Encoding = Encoding {
+const ADD_REGMEM_REG: Encoding = Encoding {
     form: OperandForm::RegMemToFromReg,
     mnemonic: InstructionMnemonic::Add,
     parsers: &[
@@ -538,7 +543,7 @@ const ADD_REGMEM_WREG: Encoding = Encoding {
 };
 
 const ADD_IMM_REGMEM: Encoding = Encoding {
-    form: OperandForm::RegMemToFromReg,
+    form: OperandForm::ImmToRegMem,
     mnemonic: InstructionMnemonic::Add,
     parsers: &[
         opcode(0b100000, 6),
@@ -546,6 +551,7 @@ const ADD_IMM_REGMEM: Encoding = Encoding {
         PARSER_W,
         PARSER_MOD,
         literal(0b000, 3),
+        PARSER_RM,
         PARSER_DISPLO,
         PARSER_DISPHI,
         PARSER_DATA_LO,
@@ -554,10 +560,10 @@ const ADD_IMM_REGMEM: Encoding = Encoding {
 };
 
 const ADD_IMM_ACC: Encoding = Encoding {
-    form: OperandForm::RegMemToFromReg,
+    form: OperandForm::ImmToAcc,
     mnemonic: InstructionMnemonic::Add,
     parsers: &[
-        opcode(0b0000010, 6),
+        opcode(0b0000010, 7),
         PARSER_W,
         PARSER_DATA_LO,
         PARSER_DATA_HI,
@@ -580,6 +586,9 @@ const INSTRUCTION_TABLE: &[Encoding] = &[
     MOV_ACC_MEM,
     SEG_TO_REGMEM,
     REGMEM_TO_SEG,
+    ADD_IMM_REGMEM,
+    ADD_REGMEM_REG,
+    ADD_IMM_ACC,
     HLT_INST,
 ];
 
@@ -635,7 +644,13 @@ fn decode_operands(context: &ParseContext, form: &OperandForm) -> Operands {
         }
 
         OperandForm::ImmToRegMem => {
-            let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
+            let w = context[Identifier::W].unwrap();
+            let s = context[Identifier::S].unwrap_or(0);
+            let imm = if s == 1 && w == 1 {
+                context[Identifier::DataLo].unwrap() as i8 as i16 as u16
+            } else {
+                combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi])
+            };
             let rm_op = rm_field_encoding(context);
             Operands::new(Some(rm_op), Some(Operand::Immediate(imm)))
         }
@@ -686,6 +701,13 @@ fn decode_operands(context: &ParseContext, form: &OperandForm) -> Operands {
             let seg_op = seg_field_encoding(context);
             let rm_op = rm_field_encoding(context);
             Operands::new(Some(seg_op), Some(rm_op))
+        }
+
+        OperandForm::ImmToAcc => {
+            let w = context[Identifier::W].unwrap();
+            let acc = if w == 0 { Register::AL } else { Register::AX };
+            let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
+            Operands::new(Some(Operand::Register(acc)), Some(Operand::Immediate(imm)))
         }
     }
 }

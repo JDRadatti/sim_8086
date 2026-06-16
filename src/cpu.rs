@@ -89,6 +89,14 @@ impl Cpu {
                 let value = self.read_operand(src)?;
                 self.write_operand(dst, value)?;
             }
+            isa::InstructionMnemonic::Add => {
+                let src = instruction.operands.op2.as_ref().unwrap();
+                let dst = instruction.operands.op1.as_ref().unwrap();
+                let src_val = self.read_operand(src)?;
+                let dst_val = self.read_operand(dst)?;
+                let result = dst_val.wrapping_add(src_val);
+                self.write_operand(dst, result)?;
+            }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())
