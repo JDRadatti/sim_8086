@@ -196,6 +196,73 @@ impl Cpu {
                         .write_u16(new_ip, &isa::Register::IP.region())?;
                 }
             }
+            isa::InstructionMnemonic::Loopnz => {
+                let disp = match instruction.operands.op1.as_ref().unwrap() {
+                    isa::Operand::RelativeOffset(d) => *d as i16,
+                    _ => unreachable!(),
+                };
+                let cx = self.read_register(isa::Register::CX);
+                let new_cx = cx.wrapping_sub(1);
+                self.bus
+                    .write_u16(new_cx, &isa::Register::CX.region())?;
+                if new_cx != 0 {
+                    let flags = self.read_register(isa::Register::FLAGS);
+                    if flags & FLAG_ZF == 0 {
+                        let ip = self.read_register(isa::Register::IP);
+                        let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
+                        self.bus
+                            .write_u16(new_ip, &isa::Register::IP.region())?;
+                    }
+                }
+            }
+            isa::InstructionMnemonic::Loopz => {
+                let disp = match instruction.operands.op1.as_ref().unwrap() {
+                    isa::Operand::RelativeOffset(d) => *d as i16,
+                    _ => unreachable!(),
+                };
+                let cx = self.read_register(isa::Register::CX);
+                let new_cx = cx.wrapping_sub(1);
+                self.bus
+                    .write_u16(new_cx, &isa::Register::CX.region())?;
+                if new_cx != 0 {
+                    let flags = self.read_register(isa::Register::FLAGS);
+                    if flags & FLAG_ZF != 0 {
+                        let ip = self.read_register(isa::Register::IP);
+                        let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
+                        self.bus
+                            .write_u16(new_ip, &isa::Register::IP.region())?;
+                    }
+                }
+            }
+            isa::InstructionMnemonic::Loop => {
+                let disp = match instruction.operands.op1.as_ref().unwrap() {
+                    isa::Operand::RelativeOffset(d) => *d as i16,
+                    _ => unreachable!(),
+                };
+                let cx = self.read_register(isa::Register::CX);
+                let new_cx = cx.wrapping_sub(1);
+                self.bus
+                    .write_u16(new_cx, &isa::Register::CX.region())?;
+                if new_cx != 0 {
+                    let ip = self.read_register(isa::Register::IP);
+                    let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
+                    self.bus
+                        .write_u16(new_ip, &isa::Register::IP.region())?;
+                }
+            }
+            isa::InstructionMnemonic::Jcxz => {
+                let disp = match instruction.operands.op1.as_ref().unwrap() {
+                    isa::Operand::RelativeOffset(d) => *d as i16,
+                    _ => unreachable!(),
+                };
+                let cx = self.read_register(isa::Register::CX);
+                if cx == 0 {
+                    let ip = self.read_register(isa::Register::IP);
+                    let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
+                    self.bus
+                        .write_u16(new_ip, &isa::Register::IP.region())?;
+                }
+            }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())

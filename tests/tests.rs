@@ -50,6 +50,8 @@ decode_tests! {
     { name: cmp_mem_imm,           file: "cmp/cmp_mem_imm.s" },
     { name: jmp_cond,              file: "jmp/jmp_cond.s" },
     { name: jmp_disp,              file: "jmp/jmp_disp.s" },
+    { name: loopnz,                file: "jmp/loopnz.s" },
+    { name: loop_dec,              file: "jmp/loop.s" },
 }
 
 execute_tests! {
@@ -254,6 +256,34 @@ execute_tests! {
         file: "jmp/jmp_jl_taken_exec.s",
         steps: 3,
         expected: { AL == 0x00 },
+        mem: {},
+    },
+    {
+        name: loopnz_exec,
+        file: "jmp/loopnz_exec.s",
+        steps: 30,
+        expected: { AX == 0x000d, BX == 0xfffb, IP == 0x001c, FLAGS == 0x0091 },
+        mem: {},
+    },
+    {
+        name: loop_exec,
+        file: "jmp/loop_exec.s",
+        steps: 4,
+        expected: { CX == 0x0000 },
+        mem: {},
+    },
+    {
+        name: loopz_exec,
+        file: "jmp/loopz_exec.s",
+        steps: 6,
+        expected: { CX == 0x0001, AX == 0xffff },
+        mem: {},
+    },
+    {
+        name: jcxz_exec,
+        file: "jmp/jcxz_exec.s",
+        steps: 2,
+        expected: { CX == 0x0000, AX == 0x0000 },
         mem: {},
     },
 }

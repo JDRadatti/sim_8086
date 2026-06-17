@@ -239,6 +239,10 @@ pub enum InstructionMnemonic {
     Sub,
     Cmp,
     Jcc(JumpCondition),
+    Loopnz,
+    Loopz,
+    Loop,
+    Jcxz,
     Hlt,
 }
 
@@ -250,6 +254,10 @@ impl fmt::Display for InstructionMnemonic {
             InstructionMnemonic::Hlt => write!(f, "hlt"),
             InstructionMnemonic::Sub => write!(f, "sub"),
             InstructionMnemonic::Cmp => write!(f, "cmp"),
+            InstructionMnemonic::Loopnz => write!(f, "loopnz"),
+            InstructionMnemonic::Loopz => write!(f, "loopz"),
+            InstructionMnemonic::Loop => write!(f, "loop"),
+            InstructionMnemonic::Jcxz => write!(f, "jcxz"),
             InstructionMnemonic::Jcc(cond) => match cond {
                 JumpCondition::Jo => write!(f, "jo"),
                 JumpCondition::Jno => write!(f, "jno"),
@@ -734,6 +742,30 @@ const JGE_INST: Encoding = jump_encoding!(0b01111101, Jge);
 const JLE_INST: Encoding = jump_encoding!(0b01111110, Jle);
 const JG_INST: Encoding = jump_encoding!(0b01111111, Jg);
 
+const LOOPNZ_INST: Encoding = Encoding {
+    form: OperandForm::JmpRel8,
+    mnemonic: InstructionMnemonic::Loopnz,
+    parsers: &[opcode(0b11100000, 8), PARSER_DATA_LO],
+};
+
+const LOOPZ_INST: Encoding = Encoding {
+    form: OperandForm::JmpRel8,
+    mnemonic: InstructionMnemonic::Loopz,
+    parsers: &[opcode(0b11100001, 8), PARSER_DATA_LO],
+};
+
+const LOOP_INST: Encoding = Encoding {
+    form: OperandForm::JmpRel8,
+    mnemonic: InstructionMnemonic::Loop,
+    parsers: &[opcode(0b11100010, 8), PARSER_DATA_LO],
+};
+
+const JCXZ_INST: Encoding = Encoding {
+    form: OperandForm::JmpRel8,
+    mnemonic: InstructionMnemonic::Jcxz,
+    parsers: &[opcode(0b11100011, 8), PARSER_DATA_LO],
+};
+
 // HLT Instruction
 
 const HLT_INST: Encoding = Encoding {
@@ -776,6 +808,10 @@ const INSTRUCTION_TABLE: &[Encoding] = &[
     JGE_INST,
     JLE_INST,
     JG_INST,
+    LOOPNZ_INST,
+    LOOPZ_INST,
+    LOOP_INST,
+    JCXZ_INST,
 ];
 
 // --------------------------------------------------------------------------------
