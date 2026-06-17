@@ -1,0 +1,7 @@
+BITS 16
+cmp ax, 0x1234
+cmp ax, 0x0010
+cmp ax, 0xFFFF
+cmp ax, 0x0000
+
+hlt

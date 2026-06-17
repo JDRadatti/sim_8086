@@ -41,6 +41,13 @@ decode_tests! {
     { name: sub_imm_al,            file: "sub/sub_imm_al.s" },
     { name: sub_imm_ax,            file: "sub/sub_imm_ax.s" },
     { name: sub_mem_imm,           file: "sub/sub_mem_imm.s" },
+    { name: cmp_reg_reg8,          file: "cmp/cmp_reg_reg8.s" },
+    { name: cmp_reg_reg16,         file: "cmp/cmp_reg_reg16.s" },
+    { name: cmp_reg_mem,           file: "cmp/cmp_reg_mem.s" },
+    { name: cmp_mem_disp8,         file: "cmp/cmp_mem_disp8.s" },
+    { name: cmp_imm_al,            file: "cmp/cmp_imm_al.s" },
+    { name: cmp_imm_ax,            file: "cmp/cmp_imm_ax.s" },
+    { name: cmp_mem_imm,           file: "cmp/cmp_mem_imm.s" },
 }
 
 execute_tests! {
@@ -182,6 +189,41 @@ execute_tests! {
         file: "flags/sub_flags_overflow_exec.s",
         steps: 2,
         expected: { AX == 0x7FFF, FLAGS == 0x0814 },
+        mem: {},
+    },
+    {
+        name: cmp_flags_noop_exec,
+        file: "cmp/cmp_flags_noop_exec.s",
+        steps: 2,
+        expected: { AX == 0x0005, FLAGS == 0x0004 },
+        mem: {},
+    },
+    {
+        name: cmp_flags_zero_exec,
+        file: "cmp/cmp_flags_zero_exec.s",
+        steps: 2,
+        expected: { AX == 0x0005, FLAGS == 0x0044 },
+        mem: {},
+    },
+    {
+        name: cmp_flags_borrow_8bit_exec,
+        file: "cmp/cmp_flags_borrow_8bit_exec.s",
+        steps: 2,
+        expected: { AL == 0x00, FLAGS == 0x0095 },
+        mem: {},
+    },
+    {
+        name: cmp_flags_borrow_16bit_exec,
+        file: "cmp/cmp_flags_borrow_16bit_exec.s",
+        steps: 2,
+        expected: { AX == 0x0000, FLAGS == 0x0095 },
+        mem: {},
+    },
+    {
+        name: cmp_flags_overflow_exec,
+        file: "cmp/cmp_flags_overflow_exec.s",
+        steps: 2,
+        expected: { AX == 0x8000, FLAGS == 0x0814 },
         mem: {},
     },
 }

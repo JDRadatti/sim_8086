@@ -1,0 +1,5 @@
+BITS 16
+cmp word [bx+0x0100], 0x1234
+cmp byte [bx+0x0100], 0x42
+
+hlt

@@ -1,0 +1,7 @@
+BITS 16
+cmp al, 0x42
+cmp al, 0x10
+cmp al, 0xFF
+cmp al, 0x00
+
+hlt
