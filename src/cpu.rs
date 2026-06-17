@@ -138,6 +138,23 @@ impl Cpu {
                 self.write_operand(dst, result)?;
                 self.set_sub_flags(result, src_val, dst_val, borrow, is_word);
             }
+            isa::InstructionMnemonic::Cmp => {
+                let src = instruction.operands.op2.as_ref().unwrap();
+                let dst = instruction.operands.op1.as_ref().unwrap();
+                let is_word = self.operand_is_word(dst);
+                let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
+                let src_val = self.read_operand(src)? & mask;
+                let dst_val = self.read_operand(dst)? & mask;
+                let (raw_result, word_borrow) = dst_val.overflowing_sub(src_val);
+                let borrow = if is_word {
+                    word_borrow
+                } else {
+                    dst_val < src_val
+                };
+                let result = raw_result & mask;
+                // CMP sets flags like SUB but does NOT write the result
+                self.set_sub_flags(result, src_val, dst_val, borrow, is_word);
+            }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())
