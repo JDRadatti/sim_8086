@@ -115,7 +115,20 @@ impl Cpu {
                 let carry = if is_word { word_overflow } else { raw_result > mask };
                 let result = raw_result & mask;
                 self.write_operand(dst, result)?;
-                self.set_arithmetic_flags(result, src_val, dst_val, carry, is_word);
+                self.set_add_flags(result, src_val, dst_val, carry, is_word);
+            }
+            isa::InstructionMnemonic::Sub => {
+                let src = instruction.operands.op2.as_ref().unwrap();
+                let dst = instruction.operands.op1.as_ref().unwrap();
+                let is_word = self.operand_is_word(dst);
+                let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
+                let src_val = self.read_operand(src)? & mask;
+                let dst_val = self.read_operand(dst)? & mask;
+                let (raw_result, word_borrow) = dst_val.overflowing_sub(src_val);
+                let borrow = if is_word { word_borrow } else { dst_val < src_val };
+                let result = raw_result & mask;
+                self.write_operand(dst, result)?;
+                self.set_sub_flags(result, src_val, dst_val, borrow, is_word);
             }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
@@ -307,34 +320,29 @@ impl Cpu {
     // Flag helpers
     //
 
-    fn set_arithmetic_flags(&mut self, result: u16, src_val: u16, dst_val: u16, carry: bool, is_word: bool) {
+    fn set_add_flags(&mut self, result: u16, src_val: u16, dst_val: u16, carry: bool, is_word: bool) {
         let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
         let sign_bit: u16 = if is_word { 0x8000 } else { 0x0080 };
         let result = result & mask;
 
-        // CF: carry flag (unsigned overflow)
         if carry {
             self.set_flag(FLAG_CF);
         } else {
             self.clear_flag(FLAG_CF);
         }
 
-        // ZF: zero flag
         if result == 0 {
             self.set_flag(FLAG_ZF);
         } else {
             self.clear_flag(FLAG_ZF);
         }
 
-        // SF: sign flag
         if result & sign_bit != 0 {
             self.set_flag(FLAG_SF);
         } else {
             self.clear_flag(FLAG_SF);
         }
 
-        // OF: overflow flag (signed overflow)
-        // Set when both inputs have the same sign but the result has a different sign
         let src_sign = src_val & sign_bit != 0;
         let dst_sign = dst_val & sign_bit != 0;
         let res_sign = result & sign_bit != 0;
@@ -344,7 +352,6 @@ impl Cpu {
             self.clear_flag(FLAG_OF);
         }
 
-        // PF: parity flag (set if low byte has even number of set bits)
         let parity = (result as u8).count_ones() % 2 == 0;
         if parity {
             self.set_flag(FLAG_PF);
@@ -352,7 +359,54 @@ impl Cpu {
             self.clear_flag(FLAG_PF);
         }
 
-        // AF: auxiliary carry flag (carry from bit 3 to bit 4)
+        if (src_val ^ dst_val ^ result) & 0x10 != 0 {
+            self.set_flag(FLAG_AF);
+        } else {
+            self.clear_flag(FLAG_AF);
+        }
+    }
+
+    fn set_sub_flags(&mut self, result: u16, src_val: u16, dst_val: u16, borrow: bool, is_word: bool) {
+        let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
+        let sign_bit: u16 = if is_word { 0x8000 } else { 0x0080 };
+        let result = result & mask;
+
+        if borrow {
+            self.set_flag(FLAG_CF);
+        } else {
+            self.clear_flag(FLAG_CF);
+        }
+
+        if result == 0 {
+            self.set_flag(FLAG_ZF);
+        } else {
+            self.clear_flag(FLAG_ZF);
+        }
+
+        if result & sign_bit != 0 {
+            self.set_flag(FLAG_SF);
+        } else {
+            self.clear_flag(FLAG_SF);
+        }
+
+        // OF for SUB: set when subtracting values of different signs
+        // produces a result with the same sign as the subtrahend (src)
+        let src_sign = src_val & sign_bit != 0;
+        let dst_sign = dst_val & sign_bit != 0;
+        let res_sign = result & sign_bit != 0;
+        if src_sign != dst_sign && res_sign == src_sign {
+            self.set_flag(FLAG_OF);
+        } else {
+            self.clear_flag(FLAG_OF);
+        }
+
+        let parity = (result as u8).count_ones() % 2 == 0;
+        if parity {
+            self.set_flag(FLAG_PF);
+        } else {
+            self.clear_flag(FLAG_PF);
+        }
+
         if (src_val ^ dst_val ^ result) & 0x10 != 0 {
             self.set_flag(FLAG_AF);
         } else {

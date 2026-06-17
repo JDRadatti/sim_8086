@@ -214,6 +214,7 @@ pub enum OperandForm {
 pub enum InstructionMnemonic {
     Mov,
     Add,
+    Sub,
     Hlt,
 }
 
@@ -223,6 +224,7 @@ impl fmt::Display for InstructionMnemonic {
             InstructionMnemonic::Mov => write!(f, "mov"),
             InstructionMnemonic::Add => write!(f, "add"),
             InstructionMnemonic::Hlt => write!(f, "hlt"),
+            InstructionMnemonic::Sub => write!(f, "sub"),
         }
     }
 }
@@ -570,6 +572,52 @@ const ADD_IMM_ACC: Encoding = Encoding {
     ],
 };
 
+// SUB Instructions
+
+const SUB_REGMEM_REG: Encoding = Encoding {
+    form: OperandForm::RegMemToFromReg,
+    mnemonic: InstructionMnemonic::Sub,
+    parsers: &[
+        opcode(0b001010, 6),
+        PARSER_D,
+        PARSER_W,
+        PARSER_MOD,
+        PARSER_REG,
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
+};
+
+const SUB_IMM_REGMEM: Encoding = Encoding {
+    form: OperandForm::ImmToRegMem,
+    mnemonic: InstructionMnemonic::Sub,
+    parsers: &[
+        opcode(0b100000, 6),
+        PARSER_S,
+        PARSER_W,
+        PARSER_MOD,
+        literal(0b101, 3),
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+        PARSER_DATA_LO,
+        PARSER_DATA_HI,
+    ],
+};
+
+const SUB_IMM_ACC: Encoding = Encoding {
+    form: OperandForm::ImmToAcc,
+    mnemonic: InstructionMnemonic::Sub,
+    parsers: &[
+        opcode(0b0010110, 7),
+        PARSER_W,
+        PARSER_DATA_LO,
+        PARSER_DATA_HI,
+    ],
+};
+
+
 // HLT Instruction
 
 const HLT_INST: Encoding = Encoding {
@@ -586,10 +634,13 @@ const INSTRUCTION_TABLE: &[Encoding] = &[
     MOV_ACC_MEM,
     SEG_TO_REGMEM,
     REGMEM_TO_SEG,
+    HLT_INST,
     ADD_IMM_REGMEM,
     ADD_REGMEM_REG,
     ADD_IMM_ACC,
-    HLT_INST,
+    SUB_IMM_REGMEM,
+    SUB_REGMEM_REG,
+    SUB_IMM_ACC,
 ];
 
 // --------------------------------------------------------------------------------
