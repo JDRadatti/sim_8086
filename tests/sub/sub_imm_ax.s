@@ -1,0 +1,7 @@
+BITS 16
+sub ax, 0x1234
+sub ax, 0x0010
+sub ax, 0xFFFF
+sub ax, 0x0000
+
+hlt

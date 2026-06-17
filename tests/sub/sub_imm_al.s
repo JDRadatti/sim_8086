@@ -1,0 +1,7 @@
+BITS 16
+sub al, 0x42
+sub al, 0x10
+sub al, 0xFF
+sub al, 0x00
+
+hlt

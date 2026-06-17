@@ -34,6 +34,13 @@ decode_tests! {
     { name: add_imm_word_signed,   file: "add/add_imm_word_signed.s" },
     { name: add_imm_al,            file: "add/add_imm_al.s" },
     { name: add_imm_ax,            file: "add/add_imm_ax.s" },
+    { name: sub_reg_reg8,          file: "sub/sub_reg_reg8.s" },
+    { name: sub_reg_reg16,         file: "sub/sub_reg_reg16.s" },
+    { name: sub_reg_mem,           file: "sub/sub_reg_mem.s" },
+    { name: sub_mem_disp8,         file: "sub/sub_mem_disp8.s" },
+    { name: sub_imm_al,            file: "sub/sub_imm_al.s" },
+    { name: sub_imm_ax,            file: "sub/sub_imm_ax.s" },
+    { name: sub_mem_imm,           file: "sub/sub_mem_imm.s" },
 }
 
 execute_tests! {
@@ -140,6 +147,41 @@ execute_tests! {
         file: "flags/add_flags_sign_exec.s",
         steps: 2,
         expected: { AX == 0x8001, FLAGS == 0x0080 },
+        mem: {},
+    },
+    {
+        name: sub_flags_noop_exec,
+        file: "flags/sub_flags_noop_exec.s",
+        steps: 2,
+        expected: { AX == 0x0005, FLAGS == 0x0004 },
+        mem: {},
+    },
+    {
+        name: sub_flags_zero_exec,
+        file: "flags/sub_flags_zero_exec.s",
+        steps: 2,
+        expected: { AX == 0x0000, FLAGS == 0x0044 },
+        mem: {},
+    },
+    {
+        name: sub_flags_borrow_16bit_exec,
+        file: "flags/sub_flags_borrow_16bit_exec.s",
+        steps: 2,
+        expected: { AX == 0xFFFF, FLAGS == 0x0095 },
+        mem: {},
+    },
+    {
+        name: sub_flags_borrow_8bit_exec,
+        file: "flags/sub_flags_borrow_8bit_exec.s",
+        steps: 2,
+        expected: { AL == 0xFF, FLAGS == 0x0095 },
+        mem: {},
+    },
+    {
+        name: sub_flags_overflow_exec,
+        file: "flags/sub_flags_overflow_exec.s",
+        steps: 2,
+        expected: { AX == 0x7FFF, FLAGS == 0x0814 },
         mem: {},
     },
 }

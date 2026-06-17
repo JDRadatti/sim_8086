@@ -1,0 +1,5 @@
+BITS 16
+sub word [bx+0x0100], 0x1234
+sub byte [bx+0x0100], 0x42
+
+hlt
