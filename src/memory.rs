@@ -31,7 +31,6 @@ impl Bus {
     // Write/Read
     //
 
-
     pub fn read(&self, region: &Region) -> Result<&[u8], MemoryError> {
         if region.address >= REGISTER_BASE {
             let local = Region {
@@ -85,7 +84,6 @@ impl Bus {
         let data = self.read_u16(region)?;
         self.write_u16(!(data | value), region)
     }
-
 
     pub fn xor_u16(&mut self, value: u16, region: &Region) -> Result<(), MemoryError> {
         let data = self.read_u16(region)?;

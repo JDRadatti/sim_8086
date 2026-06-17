@@ -112,7 +112,11 @@ impl Cpu {
                 let src_val = self.read_operand(src)? & mask;
                 let dst_val = self.read_operand(dst)? & mask;
                 let (raw_result, word_overflow) = dst_val.overflowing_add(src_val);
-                let carry = if is_word { word_overflow } else { raw_result > mask };
+                let carry = if is_word {
+                    word_overflow
+                } else {
+                    raw_result > mask
+                };
                 let result = raw_result & mask;
                 self.write_operand(dst, result)?;
                 self.set_add_flags(result, src_val, dst_val, carry, is_word);
@@ -125,7 +129,11 @@ impl Cpu {
                 let src_val = self.read_operand(src)? & mask;
                 let dst_val = self.read_operand(dst)? & mask;
                 let (raw_result, word_borrow) = dst_val.overflowing_sub(src_val);
-                let borrow = if is_word { word_borrow } else { dst_val < src_val };
+                let borrow = if is_word {
+                    word_borrow
+                } else {
+                    dst_val < src_val
+                };
                 let result = raw_result & mask;
                 self.write_operand(dst, result)?;
                 self.set_sub_flags(result, src_val, dst_val, borrow, is_word);
@@ -272,7 +280,6 @@ impl Cpu {
     // Load/Fetch instructions
     //
 
-
     fn fetch_instruction_buffer(&self) -> Result<&[u8], CpuError> {
         let ip = self
             .bus
@@ -320,7 +327,14 @@ impl Cpu {
     // Flag helpers
     //
 
-    fn set_add_flags(&mut self, result: u16, src_val: u16, dst_val: u16, carry: bool, is_word: bool) {
+    fn set_add_flags(
+        &mut self,
+        result: u16,
+        src_val: u16,
+        dst_val: u16,
+        carry: bool,
+        is_word: bool,
+    ) {
         let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
         let sign_bit: u16 = if is_word { 0x8000 } else { 0x0080 };
         let result = result & mask;
@@ -366,7 +380,14 @@ impl Cpu {
         }
     }
 
-    fn set_sub_flags(&mut self, result: u16, src_val: u16, dst_val: u16, borrow: bool, is_word: bool) {
+    fn set_sub_flags(
+        &mut self,
+        result: u16,
+        src_val: u16,
+        dst_val: u16,
+        borrow: bool,
+        is_word: bool,
+    ) {
         let mask: u16 = if is_word { 0xFFFF } else { 0x00FF };
         let sign_bit: u16 = if is_word { 0x8000 } else { 0x0080 };
         let result = result & mask;
@@ -415,17 +436,22 @@ impl Cpu {
     }
 
     fn set_flag(&mut self, flag: CpuFlag) {
-        self.bus.or_u16(flag, &isa::Register::FLAGS.region()).expect("set flag failed");
+        self.bus
+            .or_u16(flag, &isa::Register::FLAGS.region())
+            .expect("set flag failed");
     }
 
-    fn clear_flag(&mut self, flag: CpuFlag) { 
-        self.bus.and_u16(!flag, &isa::Register::FLAGS.region()).expect("clear flag failed");
+    fn clear_flag(&mut self, flag: CpuFlag) {
+        self.bus
+            .and_u16(!flag, &isa::Register::FLAGS.region())
+            .expect("clear flag failed");
     }
 
-    fn check_flag(&mut self, flag: CpuFlag) -> bool { 
-        let val = self.bus.read_u16(&isa::Register::FLAGS.region()).expect("read flag failed"); 
+    fn check_flag(&mut self, flag: CpuFlag) -> bool {
+        let val = self
+            .bus
+            .read_u16(&isa::Register::FLAGS.region())
+            .expect("read flag failed");
         val & flag != 0
     }
-
-
 }

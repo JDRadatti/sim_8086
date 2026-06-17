@@ -617,7 +617,6 @@ const SUB_IMM_ACC: Encoding = Encoding {
     ],
 };
 
-
 // HLT Instruction
 
 const HLT_INST: Encoding = Encoding {
