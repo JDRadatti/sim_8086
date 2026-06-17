@@ -48,6 +48,8 @@ decode_tests! {
     { name: cmp_imm_al,            file: "cmp/cmp_imm_al.s" },
     { name: cmp_imm_ax,            file: "cmp/cmp_imm_ax.s" },
     { name: cmp_mem_imm,           file: "cmp/cmp_mem_imm.s" },
+    { name: jmp_cond,              file: "jmp/jmp_cond.s" },
+    { name: jmp_disp,              file: "jmp/jmp_disp.s" },
 }
 
 execute_tests! {
@@ -224,6 +226,34 @@ execute_tests! {
         file: "cmp/cmp_flags_overflow_exec.s",
         steps: 2,
         expected: { AX == 0x8000, FLAGS == 0x0814 },
+        mem: {},
+    },
+    {
+        name: jmp_je_taken_exec,
+        file: "jmp/jmp_je_taken_exec.s",
+        steps: 3,
+        expected: { AX == 0x0005 },
+        mem: {},
+    },
+    {
+        name: jmp_je_not_taken_exec,
+        file: "jmp/jmp_je_not_taken_exec.s",
+        steps: 4,
+        expected: { AX == 0x0042 },
+        mem: {},
+    },
+    {
+        name: jmp_jb_taken_exec,
+        file: "jmp/jmp_jb_taken_exec.s",
+        steps: 3,
+        expected: { AX == 0x0000 },
+        mem: {},
+    },
+    {
+        name: jmp_jl_taken_exec,
+        file: "jmp/jmp_jl_taken_exec.s",
+        steps: 3,
+        expected: { AL == 0x00 },
         mem: {},
     },
 }

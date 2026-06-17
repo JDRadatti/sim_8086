@@ -155,6 +155,47 @@ impl Cpu {
                 // CMP sets flags like SUB but does NOT write the result
                 self.set_sub_flags(result, src_val, dst_val, borrow, is_word);
             }
+            isa::InstructionMnemonic::Jcc(cond) => {
+                let disp = match instruction.operands.op1.as_ref().unwrap() {
+                    isa::Operand::RelativeOffset(d) => *d as i16,
+                    _ => unreachable!(),
+                };
+                let flags = self.read_register(isa::Register::FLAGS);
+                let take = match cond {
+                    isa::JumpCondition::Jo => flags & FLAG_OF != 0,
+                    isa::JumpCondition::Jno => flags & FLAG_OF == 0,
+                    isa::JumpCondition::Jb => flags & FLAG_CF != 0,
+                    isa::JumpCondition::Jae => flags & FLAG_CF == 0,
+                    isa::JumpCondition::Je => flags & FLAG_ZF != 0,
+                    isa::JumpCondition::Jne => flags & FLAG_ZF == 0,
+                    isa::JumpCondition::Jbe => flags & (FLAG_CF | FLAG_ZF) != 0,
+                    isa::JumpCondition::Ja => flags & (FLAG_CF | FLAG_ZF) == 0,
+                    isa::JumpCondition::Js => flags & FLAG_SF != 0,
+                    isa::JumpCondition::Jns => flags & FLAG_SF == 0,
+                    isa::JumpCondition::Jp => flags & FLAG_PF != 0,
+                    isa::JumpCondition::Jnp => flags & FLAG_PF == 0,
+                    isa::JumpCondition::Jl => {
+                        flags & FLAG_SF != flags & FLAG_OF
+                    }
+                    isa::JumpCondition::Jge => {
+                        flags & FLAG_SF == flags & FLAG_OF
+                    }
+                    isa::JumpCondition::Jle => {
+                        flags & FLAG_ZF != 0
+                            || flags & FLAG_SF != flags & FLAG_OF
+                    }
+                    isa::JumpCondition::Jg => {
+                        flags & FLAG_ZF == 0
+                            && flags & FLAG_SF == flags & FLAG_OF
+                    }
+                };
+                if take {
+                    let ip = self.read_register(isa::Register::IP);
+                    let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
+                    self.bus
+                        .write_u16(new_ip, &isa::Register::IP.region())?;
+                }
+            }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())
@@ -245,6 +286,7 @@ impl Cpu {
             isa::Operand::EffectiveAddress(_, _, size) => *size == 2,
             isa::Operand::EffectiveAddress2(_, _, _, size) => *size == 2,
             isa::Operand::Immediate(_) => true,
+            isa::Operand::RelativeOffset(_) => unreachable!(),
         }
     }
 

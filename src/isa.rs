@@ -123,6 +123,7 @@ pub enum Operand {
     EffectiveAddress(Register, i16, usize),
     EffectiveAddress2(Register, Register, i16, usize),
     Immediate(u16),
+    RelativeOffset(i8),
 }
 
 impl fmt::Display for Operand {
@@ -147,6 +148,16 @@ impl fmt::Display for Operand {
                 }
             }
             Operand::Immediate(imm) => write!(f, "{imm}"),
+            Operand::RelativeOffset(disp) => {
+                let target = 2i16 + *disp as i16;
+                if target > 0 {
+                    write!(f, "$+{target}")
+                } else if target == 0 {
+                    write!(f, "$")
+                } else {
+                    write!(f, "${target}")
+                }
+            }
         }
     }
 }
@@ -183,7 +194,11 @@ impl fmt::Display for Operands {
                 .op2
                 .as_ref()
                 .map_or(false, |op| matches!(op, Operand::Register(_)));
-        if !has_register {
+        let has_offset = self
+            .op1
+            .as_ref()
+            .map_or(false, |op| matches!(op, Operand::RelativeOffset(_)));
+        if !has_register && !has_offset {
             let size = self.op1.as_ref().and_then(|op| op.size()).unwrap_or(1);
             let size_str = if size == 2 { "word" } else { "byte" };
             write!(f, "{size_str} ")?;
@@ -208,6 +223,13 @@ pub enum OperandForm {
     SegToRegMem,
     RegMemToSeg,
     ImmToAcc,
+    JmpRel8,
+}
+
+#[derive(Copy, Clone)]
+pub enum JumpCondition {
+    Jo, Jno, Jb, Jae, Je, Jne, Jbe, Ja,
+    Js, Jns, Jp, Jnp, Jl, Jge, Jle, Jg,
 }
 
 #[derive(Copy, Clone)]
@@ -216,6 +238,7 @@ pub enum InstructionMnemonic {
     Add,
     Sub,
     Cmp,
+    Jcc(JumpCondition),
     Hlt,
 }
 
@@ -227,6 +250,24 @@ impl fmt::Display for InstructionMnemonic {
             InstructionMnemonic::Hlt => write!(f, "hlt"),
             InstructionMnemonic::Sub => write!(f, "sub"),
             InstructionMnemonic::Cmp => write!(f, "cmp"),
+            InstructionMnemonic::Jcc(cond) => match cond {
+                JumpCondition::Jo => write!(f, "jo"),
+                JumpCondition::Jno => write!(f, "jno"),
+                JumpCondition::Jb => write!(f, "jb"),
+                JumpCondition::Jae => write!(f, "jae"),
+                JumpCondition::Je => write!(f, "je"),
+                JumpCondition::Jne => write!(f, "jne"),
+                JumpCondition::Jbe => write!(f, "jbe"),
+                JumpCondition::Ja => write!(f, "ja"),
+                JumpCondition::Js => write!(f, "js"),
+                JumpCondition::Jns => write!(f, "jns"),
+                JumpCondition::Jp => write!(f, "jp"),
+                JumpCondition::Jnp => write!(f, "jnp"),
+                JumpCondition::Jl => write!(f, "jl"),
+                JumpCondition::Jge => write!(f, "jge"),
+                JumpCondition::Jle => write!(f, "jle"),
+                JumpCondition::Jg => write!(f, "jg"),
+            },
         }
     }
 }
@@ -664,6 +705,35 @@ const CMP_IMM_ACC: Encoding = Encoding {
     ],
 };
 
+// Conditional Jump Instructions
+
+macro_rules! jump_encoding {
+    ($opcode:expr, $cond:ident) => {
+        Encoding {
+            form: OperandForm::JmpRel8,
+            mnemonic: InstructionMnemonic::Jcc(JumpCondition::$cond),
+            parsers: &[opcode($opcode, 8), PARSER_DATA_LO],
+        }
+    };
+}
+
+const JO_INST: Encoding = jump_encoding!(0b01110000, Jo);
+const JNO_INST: Encoding = jump_encoding!(0b01110001, Jno);
+const JB_INST: Encoding = jump_encoding!(0b01110010, Jb);
+const JAE_INST: Encoding = jump_encoding!(0b01110011, Jae);
+const JE_INST: Encoding = jump_encoding!(0b01110100, Je);
+const JNE_INST: Encoding = jump_encoding!(0b01110101, Jne);
+const JBE_INST: Encoding = jump_encoding!(0b01110110, Jbe);
+const JA_INST: Encoding = jump_encoding!(0b01110111, Ja);
+const JS_INST: Encoding = jump_encoding!(0b01111000, Js);
+const JNS_INST: Encoding = jump_encoding!(0b01111001, Jns);
+const JP_INST: Encoding = jump_encoding!(0b01111010, Jp);
+const JNP_INST: Encoding = jump_encoding!(0b01111011, Jnp);
+const JL_INST: Encoding = jump_encoding!(0b01111100, Jl);
+const JGE_INST: Encoding = jump_encoding!(0b01111101, Jge);
+const JLE_INST: Encoding = jump_encoding!(0b01111110, Jle);
+const JG_INST: Encoding = jump_encoding!(0b01111111, Jg);
+
 // HLT Instruction
 
 const HLT_INST: Encoding = Encoding {
@@ -690,6 +760,22 @@ const INSTRUCTION_TABLE: &[Encoding] = &[
     CMP_REGMEM_REG,
     CMP_IMM_REGMEM,
     CMP_IMM_ACC,
+    JO_INST,
+    JNO_INST,
+    JB_INST,
+    JAE_INST,
+    JE_INST,
+    JNE_INST,
+    JBE_INST,
+    JA_INST,
+    JS_INST,
+    JNS_INST,
+    JP_INST,
+    JNP_INST,
+    JL_INST,
+    JGE_INST,
+    JLE_INST,
+    JG_INST,
 ];
 
 // --------------------------------------------------------------------------------
@@ -808,6 +894,11 @@ fn decode_operands(context: &ParseContext, form: &OperandForm) -> Operands {
             let acc = if w == 0 { Register::AL } else { Register::AX };
             let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
             Operands::new(Some(Operand::Register(acc)), Some(Operand::Immediate(imm)))
+        }
+
+        OperandForm::JmpRel8 => {
+            let disp = context[Identifier::DataLo].unwrap() as i8;
+            Operands::new(Some(Operand::RelativeOffset(disp)), None)
         }
     }
 }
