@@ -174,26 +174,19 @@ impl Cpu {
                     isa::JumpCondition::Jns => flags & FLAG_SF == 0,
                     isa::JumpCondition::Jp => flags & FLAG_PF != 0,
                     isa::JumpCondition::Jnp => flags & FLAG_PF == 0,
-                    isa::JumpCondition::Jl => {
-                        flags & FLAG_SF != flags & FLAG_OF
-                    }
-                    isa::JumpCondition::Jge => {
-                        flags & FLAG_SF == flags & FLAG_OF
-                    }
+                    isa::JumpCondition::Jl => flags & FLAG_SF != flags & FLAG_OF,
+                    isa::JumpCondition::Jge => flags & FLAG_SF == flags & FLAG_OF,
                     isa::JumpCondition::Jle => {
-                        flags & FLAG_ZF != 0
-                            || flags & FLAG_SF != flags & FLAG_OF
+                        flags & FLAG_ZF != 0 || flags & FLAG_SF != flags & FLAG_OF
                     }
                     isa::JumpCondition::Jg => {
-                        flags & FLAG_ZF == 0
-                            && flags & FLAG_SF == flags & FLAG_OF
+                        flags & FLAG_ZF == 0 && flags & FLAG_SF == flags & FLAG_OF
                     }
                 };
                 if take {
                     let ip = self.read_register(isa::Register::IP);
                     let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
-                    self.bus
-                        .write_u16(new_ip, &isa::Register::IP.region())?;
+                    self.bus.write_u16(new_ip, &isa::Register::IP.region())?;
                 }
             }
             isa::InstructionMnemonic::Loopnz => {
@@ -203,15 +196,13 @@ impl Cpu {
                 };
                 let cx = self.read_register(isa::Register::CX);
                 let new_cx = cx.wrapping_sub(1);
-                self.bus
-                    .write_u16(new_cx, &isa::Register::CX.region())?;
+                self.bus.write_u16(new_cx, &isa::Register::CX.region())?;
                 if new_cx != 0 {
                     let flags = self.read_register(isa::Register::FLAGS);
                     if flags & FLAG_ZF == 0 {
                         let ip = self.read_register(isa::Register::IP);
                         let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
-                        self.bus
-                            .write_u16(new_ip, &isa::Register::IP.region())?;
+                        self.bus.write_u16(new_ip, &isa::Register::IP.region())?;
                     }
                 }
             }
@@ -222,15 +213,13 @@ impl Cpu {
                 };
                 let cx = self.read_register(isa::Register::CX);
                 let new_cx = cx.wrapping_sub(1);
-                self.bus
-                    .write_u16(new_cx, &isa::Register::CX.region())?;
+                self.bus.write_u16(new_cx, &isa::Register::CX.region())?;
                 if new_cx != 0 {
                     let flags = self.read_register(isa::Register::FLAGS);
                     if flags & FLAG_ZF != 0 {
                         let ip = self.read_register(isa::Register::IP);
                         let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
-                        self.bus
-                            .write_u16(new_ip, &isa::Register::IP.region())?;
+                        self.bus.write_u16(new_ip, &isa::Register::IP.region())?;
                     }
                 }
             }
@@ -241,13 +230,11 @@ impl Cpu {
                 };
                 let cx = self.read_register(isa::Register::CX);
                 let new_cx = cx.wrapping_sub(1);
-                self.bus
-                    .write_u16(new_cx, &isa::Register::CX.region())?;
+                self.bus.write_u16(new_cx, &isa::Register::CX.region())?;
                 if new_cx != 0 {
                     let ip = self.read_register(isa::Register::IP);
                     let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
-                    self.bus
-                        .write_u16(new_ip, &isa::Register::IP.region())?;
+                    self.bus.write_u16(new_ip, &isa::Register::IP.region())?;
                 }
             }
             isa::InstructionMnemonic::Jcxz => {
@@ -259,8 +246,7 @@ impl Cpu {
                 if cx == 0 {
                     let ip = self.read_register(isa::Register::IP);
                     let new_ip = ((ip as i16).wrapping_add(disp)) as u16;
-                    self.bus
-                        .write_u16(new_ip, &isa::Register::IP.region())?;
+                    self.bus.write_u16(new_ip, &isa::Register::IP.region())?;
                 }
             }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),

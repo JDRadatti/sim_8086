@@ -228,8 +228,22 @@ pub enum OperandForm {
 
 #[derive(Copy, Clone)]
 pub enum JumpCondition {
-    Jo, Jno, Jb, Jae, Je, Jne, Jbe, Ja,
-    Js, Jns, Jp, Jnp, Jl, Jge, Jle, Jg,
+    Jo,
+    Jno,
+    Jb,
+    Jae,
+    Je,
+    Jne,
+    Jbe,
+    Ja,
+    Js,
+    Jns,
+    Jp,
+    Jnp,
+    Jl,
+    Jge,
+    Jle,
+    Jg,
 }
 
 #[derive(Copy, Clone)]
