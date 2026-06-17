@@ -1,0 +1,7 @@
+BITS 16
+mov ax, 0x0001
+call 0x0008
+mov ax, 0x0002
+hlt
+mov ax, 0x0003
+ret

@@ -52,6 +52,10 @@ decode_tests! {
     { name: jmp_disp,              file: "jmp/jmp_disp.s" },
     { name: loopnz,                file: "jmp/loopnz.s" },
     { name: loop_dec,              file: "jmp/loop.s" },
+    { name: push,                  file: "stack/push.s" },
+    { name: pop,                   file: "stack/pop.s" },
+    { name: call,                  file: "stack/call.s" },
+    { name: ret,                   file: "stack/ret.s" },
 }
 
 execute_tests! {
@@ -284,6 +288,20 @@ execute_tests! {
         file: "jmp/jcxz_exec.s",
         steps: 2,
         expected: { CX == 0x0000, AX == 0x0000 },
+        mem: {},
+    },
+    {
+        name: push_pop_exec,
+        file: "stack/push_pop_exec.s",
+        steps: 6,
+        expected: { AX == 0x5678, BX == 0x1234 },
+        mem: {},
+    },
+    {
+        name: call_ret_exec,
+        file: "stack/call_ret_exec.s",
+        steps: 4,
+        expected: { AX == 0x0003 },
         mem: {},
     },
 }

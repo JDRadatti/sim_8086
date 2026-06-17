@@ -249,6 +249,120 @@ impl Cpu {
                     self.bus.write_u16(new_ip, &isa::Register::IP.region())?;
                 }
             }
+            isa::InstructionMnemonic::Push => {
+                let src = instruction.operands.op1.as_ref().unwrap();
+                let val = self.read_operand(src)?;
+                let sp = self.read_register(isa::Register::SP);
+                let new_sp = sp.wrapping_sub(2);
+                let addr = self.compute_linear_address(new_sp, isa::Register::SS);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.bus.write_u16(
+                    val,
+                    &Region {
+                        address: addr,
+                        size: 2,
+                    },
+                )?;
+            }
+            isa::InstructionMnemonic::Pop => {
+                let dst = instruction.operands.op1.as_ref().unwrap();
+                let sp = self.read_register(isa::Register::SP);
+                let addr = self.compute_linear_address(sp, isa::Register::SS);
+                let val = self.bus.read_u16(&Region {
+                    address: addr,
+                    size: 2,
+                })?;
+                let new_sp = sp.wrapping_add(2);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.write_operand(dst, val)?;
+            }
+            isa::InstructionMnemonic::Call => {
+                let ip = self.read_register(isa::Register::IP);
+                let sp = self.read_register(isa::Register::SP);
+                let new_sp = sp.wrapping_sub(2);
+                let addr = self.compute_linear_address(new_sp, isa::Register::SS);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.bus.write_u16(
+                    ip,
+                    &Region {
+                        address: addr,
+                        size: 2,
+                    },
+                )?;
+                let target = match instruction.operands.op1.as_ref().unwrap() {
+                    isa::Operand::RelativeOffset16(disp) => {
+                        ((ip as i32).wrapping_add(*disp as i32)) as u16
+                    }
+                    op => self.read_operand(op)?,
+                };
+                self.bus.write_u16(target, &isa::Register::IP.region())?;
+            }
+            isa::InstructionMnemonic::Ret => {
+                let sp = self.read_register(isa::Register::SP);
+                let addr = self.compute_linear_address(sp, isa::Register::SS);
+                let ip = self.bus.read_u16(&Region {
+                    address: addr,
+                    size: 2,
+                })?;
+                let new_sp = sp.wrapping_add(2);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.bus.write_u16(ip, &isa::Register::IP.region())?;
+            }
+            isa::InstructionMnemonic::RetF => {
+                let sp = self.read_register(isa::Register::SP);
+                let addr = self.compute_linear_address(sp, isa::Register::SS);
+                let ip = self.bus.read_u16(&Region {
+                    address: addr,
+                    size: 2,
+                })?;
+                let sp2 = sp.wrapping_add(2);
+                let addr2 = self.compute_linear_address(sp2, isa::Register::SS);
+                let cs = self.bus.read_u16(&Region {
+                    address: addr2,
+                    size: 2,
+                })?;
+                let new_sp = sp2.wrapping_add(2);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.bus.write_u16(ip, &isa::Register::IP.region())?;
+                self.bus.write_u16(cs, &isa::Register::CS.region())?;
+            }
+            isa::InstructionMnemonic::RetImm => {
+                let sp = self.read_register(isa::Register::SP);
+                let addr = self.compute_linear_address(sp, isa::Register::SS);
+                let ip = self.bus.read_u16(&Region {
+                    address: addr,
+                    size: 2,
+                })?;
+                let imm = instruction.operands.op1.as_ref().unwrap();
+                let isa::Operand::Immediate(pop_val) = imm else {
+                    unreachable!()
+                };
+                let new_sp = sp.wrapping_add(2).wrapping_add(*pop_val);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.bus.write_u16(ip, &isa::Register::IP.region())?;
+            }
+            isa::InstructionMnemonic::RetFImm => {
+                let sp = self.read_register(isa::Register::SP);
+                let addr = self.compute_linear_address(sp, isa::Register::SS);
+                let ip = self.bus.read_u16(&Region {
+                    address: addr,
+                    size: 2,
+                })?;
+                let sp2 = sp.wrapping_add(2);
+                let addr2 = self.compute_linear_address(sp2, isa::Register::SS);
+                let cs = self.bus.read_u16(&Region {
+                    address: addr2,
+                    size: 2,
+                })?;
+                let imm = instruction.operands.op1.as_ref().unwrap();
+                let isa::Operand::Immediate(pop_val) = imm else {
+                    unreachable!()
+                };
+                let new_sp = sp2.wrapping_add(2).wrapping_add(*pop_val);
+                self.bus.write_u16(new_sp, &isa::Register::SP.region())?;
+                self.bus.write_u16(ip, &isa::Register::IP.region())?;
+                self.bus.write_u16(cs, &isa::Register::CS.region())?;
+            }
             isa::InstructionMnemonic::Hlt => return Err(CpuError::Halted),
         }
         Ok(())
@@ -274,6 +388,9 @@ impl Cpu {
         match operand {
             isa::Operand::Register(reg) => self.bus.read_u16(&reg.region()).map_err(CpuError::from),
             isa::Operand::Immediate(val) => Ok(*val),
+            isa::Operand::RelativeOffset(_) | isa::Operand::RelativeOffset16(_) => {
+                unreachable!()
+            }
             _ => {
                 let region = self.operand_region(operand).unwrap();
                 self.bus.read_u16(&region).map_err(CpuError::from)
@@ -287,7 +404,9 @@ impl Cpu {
                 .bus
                 .write_u16(value, &reg.region())
                 .map_err(CpuError::from),
-            isa::Operand::Immediate(_) => {
+            isa::Operand::Immediate(_)
+            | isa::Operand::RelativeOffset(_)
+            | isa::Operand::RelativeOffset16(_) => {
                 panic!("cannot write to immediate operand");
             }
             _ => {
@@ -339,7 +458,9 @@ impl Cpu {
             isa::Operand::EffectiveAddress(_, _, size) => *size == 2,
             isa::Operand::EffectiveAddress2(_, _, _, size) => *size == 2,
             isa::Operand::Immediate(_) => true,
-            isa::Operand::RelativeOffset(_) => unreachable!(),
+            isa::Operand::RelativeOffset(_) | isa::Operand::RelativeOffset16(_) => {
+                unreachable!()
+            }
         }
     }
 

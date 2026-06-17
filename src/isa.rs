@@ -124,6 +124,7 @@ pub enum Operand {
     EffectiveAddress2(Register, Register, i16, usize),
     Immediate(u16),
     RelativeOffset(i8),
+    RelativeOffset16(i16),
 }
 
 impl fmt::Display for Operand {
@@ -150,6 +151,16 @@ impl fmt::Display for Operand {
             Operand::Immediate(imm) => write!(f, "{imm}"),
             Operand::RelativeOffset(disp) => {
                 let target = 2i16 + *disp as i16;
+                if target > 0 {
+                    write!(f, "$+{target}")
+                } else if target == 0 {
+                    write!(f, "$")
+                } else {
+                    write!(f, "${target}")
+                }
+            }
+            Operand::RelativeOffset16(disp) => {
+                let target = 3i32 + *disp as i32;
                 if target > 0 {
                     write!(f, "$+{target}")
                 } else if target == 0 {
@@ -186,19 +197,18 @@ impl Operands {
 
 impl fmt::Display for Operands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let has_register = self
-            .op1
-            .as_ref()
-            .map_or(false, |op| matches!(op, Operand::Register(_)))
-            || self
-                .op2
-                .as_ref()
-                .map_or(false, |op| matches!(op, Operand::Register(_)));
-        let has_offset = self
-            .op1
-            .as_ref()
-            .map_or(false, |op| matches!(op, Operand::RelativeOffset(_)));
-        if !has_register && !has_offset {
+        let is_pure = |op: &Operand| {
+            matches!(
+                op,
+                Operand::Register(_)
+                    | Operand::Immediate(_)
+                    | Operand::RelativeOffset(_)
+                    | Operand::RelativeOffset16(_)
+            )
+        };
+        let all_pure = self.op1.as_ref().map_or(true, |op| is_pure(op))
+            && self.op2.as_ref().map_or(true, |op| is_pure(op));
+        if !all_pure {
             let size = self.op1.as_ref().and_then(|op| op.size()).unwrap_or(1);
             let size_str = if size == 2 { "word" } else { "byte" };
             write!(f, "{size_str} ")?;
@@ -224,6 +234,11 @@ pub enum OperandForm {
     RegMemToSeg,
     ImmToAcc,
     JmpRel8,
+    SingleReg,
+    SegReg,
+    ModRmOp,
+    JmpRel16,
+    SingleImm,
 }
 
 #[derive(Copy, Clone)]
@@ -257,6 +272,13 @@ pub enum InstructionMnemonic {
     Loopz,
     Loop,
     Jcxz,
+    Push,
+    Pop,
+    Call,
+    Ret,
+    RetF,
+    RetImm,
+    RetFImm,
     Hlt,
 }
 
@@ -272,6 +294,13 @@ impl fmt::Display for InstructionMnemonic {
             InstructionMnemonic::Loopz => write!(f, "loopz"),
             InstructionMnemonic::Loop => write!(f, "loop"),
             InstructionMnemonic::Jcxz => write!(f, "jcxz"),
+            InstructionMnemonic::Push => write!(f, "push"),
+            InstructionMnemonic::Pop => write!(f, "pop"),
+            InstructionMnemonic::Call => write!(f, "call"),
+            InstructionMnemonic::Ret => write!(f, "ret"),
+            InstructionMnemonic::RetF => write!(f, "retf"),
+            InstructionMnemonic::RetImm => write!(f, "ret"),
+            InstructionMnemonic::RetFImm => write!(f, "retf"),
             InstructionMnemonic::Jcc(cond) => match cond {
                 JumpCondition::Jo => write!(f, "jo"),
                 JumpCondition::Jno => write!(f, "jno"),
@@ -478,6 +507,8 @@ const PARSER_DATA_HI: Parser = Parser::new(Identifier::DataHi, None, Some(FLAG_W
 const PARSER_ADDR_LO: Parser = Parser::new(Identifier::AddrLo, None, None, 8);
 const PARSER_ADDR_HI: Parser = Parser::new(Identifier::AddrHi, None, None, 8);
 const PARSER_SR: Parser = Parser::new(Identifier::Sr, None, None, 2);
+const PARSER_UNCOND_LO: Parser = Parser::new(Identifier::DataLo, None, None, 8);
+const PARSER_UNCOND_HI: Parser = Parser::new(Identifier::DataHi, None, None, 8);
 
 const fn opcode(opcode: u8, size: usize) -> Parser {
     Parser::new(Identifier::Opcode, Some(opcode), None, size)
@@ -780,6 +811,107 @@ const JCXZ_INST: Encoding = Encoding {
     parsers: &[opcode(0b11100011, 8), PARSER_DATA_LO],
 };
 
+// PUSH Instructions
+
+const PUSH_REG: Encoding = Encoding {
+    form: OperandForm::SingleReg,
+    mnemonic: InstructionMnemonic::Push,
+    parsers: &[opcode(0b01010, 5), PARSER_REG],
+};
+
+const PUSH_SEG: Encoding = Encoding {
+    form: OperandForm::SegReg,
+    mnemonic: InstructionMnemonic::Push,
+    parsers: &[opcode(0b000, 3), PARSER_SR, literal(0b110, 3)],
+};
+
+const PUSH_MEM: Encoding = Encoding {
+    form: OperandForm::ModRmOp,
+    mnemonic: InstructionMnemonic::Push,
+    parsers: &[
+        opcode(0b11111111, 8),
+        PARSER_MOD,
+        literal(0b110, 3),
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
+};
+
+// POP Instructions
+
+const POP_REG: Encoding = Encoding {
+    form: OperandForm::SingleReg,
+    mnemonic: InstructionMnemonic::Pop,
+    parsers: &[opcode(0b01011, 5), PARSER_REG],
+};
+
+const POP_SEG: Encoding = Encoding {
+    form: OperandForm::SegReg,
+    mnemonic: InstructionMnemonic::Pop,
+    parsers: &[opcode(0b000, 3), PARSER_SR, literal(0b111, 3)],
+};
+
+const POP_MEM: Encoding = Encoding {
+    form: OperandForm::ModRmOp,
+    mnemonic: InstructionMnemonic::Pop,
+    parsers: &[
+        opcode(0b10001111, 8),
+        PARSER_MOD,
+        literal(0b000, 3),
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
+};
+
+// CALL Instructions
+
+const CALL_REL16: Encoding = Encoding {
+    form: OperandForm::JmpRel16,
+    mnemonic: InstructionMnemonic::Call,
+    parsers: &[opcode(0b11101000, 8), PARSER_UNCOND_LO, PARSER_UNCOND_HI],
+};
+
+const CALL_REG_MEM: Encoding = Encoding {
+    form: OperandForm::ModRmOp,
+    mnemonic: InstructionMnemonic::Call,
+    parsers: &[
+        opcode(0b11111111, 8),
+        PARSER_MOD,
+        literal(0b010, 3),
+        PARSER_RM,
+        PARSER_DISPLO,
+        PARSER_DISPHI,
+    ],
+};
+
+// RET Instructions
+
+const RET_NEAR: Encoding = Encoding {
+    form: OperandForm::None,
+    mnemonic: InstructionMnemonic::Ret,
+    parsers: &[opcode(0b11000011, 8)],
+};
+
+const RET_FAR: Encoding = Encoding {
+    form: OperandForm::None,
+    mnemonic: InstructionMnemonic::RetF,
+    parsers: &[opcode(0b11001011, 8)],
+};
+
+const RET_IMM: Encoding = Encoding {
+    form: OperandForm::SingleImm,
+    mnemonic: InstructionMnemonic::RetImm,
+    parsers: &[opcode(0b11000010, 8), PARSER_UNCOND_LO, PARSER_UNCOND_HI],
+};
+
+const RET_FAR_IMM: Encoding = Encoding {
+    form: OperandForm::SingleImm,
+    mnemonic: InstructionMnemonic::RetFImm,
+    parsers: &[opcode(0b11001010, 8), PARSER_UNCOND_LO, PARSER_UNCOND_HI],
+};
+
 // HLT Instruction
 
 const HLT_INST: Encoding = Encoding {
@@ -826,6 +958,18 @@ const INSTRUCTION_TABLE: &[Encoding] = &[
     LOOPZ_INST,
     LOOP_INST,
     JCXZ_INST,
+    PUSH_REG,
+    PUSH_SEG,
+    PUSH_MEM,
+    POP_REG,
+    POP_SEG,
+    POP_MEM,
+    CALL_REL16,
+    CALL_REG_MEM,
+    RET_NEAR,
+    RET_FAR,
+    RET_IMM,
+    RET_FAR_IMM,
 ];
 
 // --------------------------------------------------------------------------------
@@ -949,6 +1093,32 @@ fn decode_operands(context: &ParseContext, form: &OperandForm) -> Operands {
         OperandForm::JmpRel8 => {
             let disp = context[Identifier::DataLo].unwrap() as i8;
             Operands::new(Some(Operand::RelativeOffset(disp)), None)
+        }
+
+        OperandForm::SingleReg => {
+            let reg = context[Identifier::Reg].unwrap();
+            Operands::new(Some(Operand::Register(decode_register(reg, 1))), None)
+        }
+
+        OperandForm::SegReg => {
+            let seg = seg_field_encoding(context);
+            Operands::new(Some(seg), None)
+        }
+
+        OperandForm::ModRmOp => {
+            let rm = rm_field_encoding(context);
+            Operands::new(Some(rm), None)
+        }
+
+        OperandForm::JmpRel16 => {
+            let disp =
+                combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]) as i16;
+            Operands::new(Some(Operand::RelativeOffset16(disp)), None)
+        }
+
+        OperandForm::SingleImm => {
+            let imm = combine_bytes_u16(context[Identifier::DataLo], context[Identifier::DataHi]);
+            Operands::new(Some(Operand::Immediate(imm)), None)
         }
     }
 }
