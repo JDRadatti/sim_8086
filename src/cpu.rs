@@ -41,6 +41,7 @@ const FLAG_ZF: CpuFlag = 0b1000000;
 const FLAG_SF: CpuFlag = 0b10000000;
 const FLAG_TF: CpuFlag = 0b100000000;
 const FLAG_IF: CpuFlag = 0b1000000000;
+#[allow(dead_code)]
 const FLAG_DF: CpuFlag = 0b10000000000;
 const FLAG_OF: CpuFlag = 0b100000000000;
 
